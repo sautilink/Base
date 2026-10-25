@@ -1,0 +1,1 @@
+export default function Home() { return <main><div className="card"><span className="eyebrow">SAUTILINK BASE</span><h1>Build smarter bots.<br />For free.</h1><p>Create and manage Telegram bots with automation, smart replies and a simple dashboard.</p><span className="badge">Foundation preview · Not yet connected to Telegram</span></div></main>; }
