@@ -7,3 +7,7 @@ coverage/
 .env.*
 !.env.example
 *.log
+
+.open-next/
+.wrangler/
+.dev.vars
