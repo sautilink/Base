@@ -1,5 +1,5 @@
 import { Body, Controller, Headers, HttpException, HttpStatus, Post } from '@nestjs/common';
-import { createCipheriv, randomBytes } from 'node:crypto';
+import { BOT_TOKEN_PATTERN, encryptBotToken, requireEncryptionKey } from './bot-security';
 import { Pool } from 'pg';
 
 const TOKEN_PATTERN = /^\d{5,15}:[A-Za-z0-9_-]{30,}$/;
@@ -13,13 +13,6 @@ function pool(): Pool {
     database = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, connectionTimeoutMillis: 5000, ssl: { rejectUnauthorized: true } });
   }
   return database;
-}
-function encryptionKey(): Buffer {
-  const value = process.env.BOT_TOKEN_ENCRYPTION_KEY;
-  if (!value) throw new Error('BOT_TOKEN_ENCRYPTION_KEY missing');
-  const key = Buffer.from(value, 'base64');
-  if (key.length !== 32) throw new Error('BOT_TOKEN_ENCRYPTION_KEY must be 32 bytes encoded as base64');
-  return key;
 }
 async function verifiedUserId(authorization?: string): Promise<string> {
   if (!authorization?.startsWith('Bearer ')) throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
@@ -43,11 +36,11 @@ export class BotsController {
   @Post('connect')
   async connect(@Headers('authorization') authorization: string | undefined, @Body() body: ConnectPayload) {
     const ownerId = await verifiedUserId(authorization);
-    if (!body || typeof body.token !== 'string' || !TOKEN_PATTERN.test(body.token)) {
+    if (!body || typeof body.token !== 'string' || !BOT_TOKEN_PATTERN.test(body.token)) {
       throw new HttpException('Invalid bot token format', HttpStatus.BAD_REQUEST);
     }
     const token = body.token;
-    const key = encryptionKey(); // Validate configuration before contacting Telegram.
+    const key = requireEncryptionKey(process.env.BOT_TOKEN_ENCRYPTION_KEY); // Fail closed before using a sensitive token.
     let response: Response;
     try {
       response = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
@@ -64,10 +57,7 @@ export class BotsController {
     if (!data.ok || !data.result?.is_bot || !data.result.username || !Number.isSafeInteger(data.result.id)) {
       throw new HttpException('Telegram did not verify a bot', HttpStatus.BAD_REQUEST);
     }
-    const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', key, iv);
-    const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
-    const tokenCiphertext = Buffer.concat([iv, cipher.getAuthTag(), encrypted]);
+    const tokenCiphertext = encryptBotToken(token, key);
     const client = await pool().connect();
     try {
       await client.query('BEGIN');
