@@ -29,3 +29,8 @@ Never put database credentials, BotFather tokens, service-role keys or encryptio
 If Cloudflare install fails in the monorepo, inspect the Workers Build log before changing commands. If the root-directory setting is incompatible with pnpm workspace installation, build from the repository root with `pnpm --filter @base/web ...` instead, adjusting Wrangler cwd. Do not create duplicate Workers or remove the custom domain.
 
 Note: this file documents the intended configuration; external deployment still requires the Cloudflare connection and secrets configured in the Cloudflare dashboard.
+## Preview build verification
+
+Use Cloudflare Preview builds to test changes on
+feat/phase-1-foundation before production deployment.
+Keep main as the production branch.
