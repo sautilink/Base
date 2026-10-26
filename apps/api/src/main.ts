@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { Controller, Get, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { BotsController } from './bots.controller';
 
 @Controller('health')
 class HealthController {
@@ -8,7 +9,7 @@ class HealthController {
   status() { return { status: 'ok', service: 'sautilink-base-api' }; }
 }
 
-@Module({ controllers: [HealthController] })
+@Module({ controllers: [HealthController, BotsController] })
 class AppModule {}
 
 async function bootstrap() {
