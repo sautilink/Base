@@ -21,3 +21,4 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm --filter @base/api test
       - run: pnpm build
+      - run: pnpm --filter @base/web build:cloudflare
