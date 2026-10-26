@@ -7,14 +7,18 @@ This repository is a pnpm monorepo; **Next.js app and Wrangler config live in `a
 ## Cloudflare → Workers & Pages → sautilink-base-web → Settings → Build
 
 - GitHub repository: `sautilink/Base`
-- Root directory: `apps/web`
+- Root directory: `/apps/web/` (path to the Next.js app and its `wrangler.jsonc`)
 - Production branch: `main` (do **not** deploy until this PR is merged and CI is green)
 - Build command: `npx @opennextjs/cloudflare build`
 - Deploy command: `npx @opennextjs/cloudflare deploy`
-- Preview command: `npx @opennextjs/cloudflare upload` (preview versions, not public production)
+- Worker Previews command: `npx wrangler preview` (creates/updates the branch Preview; do not use `opennextjs-cloudflare upload` here because that uploads a Worker version rather than creating a Worker Preview)
 - Build system: Node 22, pnpm 9.15.4. Ensure workspace packages are installed from repository root.
 
 App uses Cloudflare's OpenNext adapter for Next.js 15. Wrapper config is in `apps/web/wrangler.jsonc`; make sure the Cloudflare build's working directory is `apps/web`.
+
+## Build variables (set in Cloudflare for both Preview and Production as applicable)
+
+These are required for the Next.js client configuration and must be available during the build; `NEXT_PUBLIC_` values are embedded at build time.
 
 ## Variables (Worker build/deployment)
 
