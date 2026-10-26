@@ -19,4 +19,5 @@ jobs:
       # Bootstrap only: generate a lockfile in CI until a reviewed lockfile is committed.
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm --filter @base/api test
       - run: pnpm build
