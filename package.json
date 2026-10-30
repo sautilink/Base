@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "build:cloudflare": "pnpm --filter @base/web build:cloudflare",
+    "deploy:preview:cloudflare": "pnpm --filter @base/web deploy:preview:cloudflare",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint"
   },

@@ -8,20 +8,21 @@
     "typecheck": "tsc --noEmit",
     "build:cloudflare": "opennextjs-cloudflare build",
     "deploy:cloudflare": "opennextjs-cloudflare deploy",
+    "deploy:preview:cloudflare": "wrangler preview",
     "preview:cloudflare": "opennextjs-cloudflare preview"
   },
   "dependencies": {
-    "next": "15.5.27",
+    "@supabase/supabase-js": "^2.57.0",
+    "next": "15.5.28",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "@supabase/supabase-js": "^2.57.0"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "1.20.13",
     "@types/node": "^22.13.0",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "typescript": "^5.7.3",
-    "@opennextjs/cloudflare": "1.20.13",
     "wrangler": "^4.135.0"
   }
 }

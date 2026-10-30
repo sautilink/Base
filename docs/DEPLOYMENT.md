@@ -4,7 +4,7 @@ Production is **not deployed** as of this document. Use the `sautilink/Base` rep
 
 ## 1. Verify code
 - Require GitHub Actions typecheck, API encryption tests and build to pass before merging.
-- Commit a lockfile and switch CI to `pnpm install --frozen-lockfile` before production.
+- Install the committed lockfile with `pnpm install --frozen-lockfile`, as CI does.
 - Add multi-user and cross-tenant integration tests, plus threat-model review.
 
 ## 2. Database

@@ -16,9 +16,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      # Bootstrap only: generate a lockfile in CI until a reviewed lockfile is committed.
-      - run: pnpm install --no-frozen-lockfile
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm --filter @base/api test
       - run: pnpm build
-      - run: pnpm --filter @base/web build:cloudflare
+      - run: pnpm build:cloudflare
+      - run: pnpm --filter @base/web exec wrangler deploy --dry-run
+      - run: pnpm deploy:preview:cloudflare --help
