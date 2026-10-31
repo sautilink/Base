@@ -1,0 +1,18 @@
+{
+  "name": "sautilink-base",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "build:cloudflare": "pnpm --filter @base/web build:cloudflare",
+    "deploy:preview:cloudflare": "pnpm --filter @base/web deploy:preview:cloudflare",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.3"
+  }
+}

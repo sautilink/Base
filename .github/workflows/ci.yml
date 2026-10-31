@@ -1,0 +1,40 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm --filter @base/api test
+      - run: pnpm build
+      - name: API health smoke test
+        run: |
+          PORT=33331 node apps/api/dist/main.js &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --silent --fail http://127.0.0.1:33331/health | grep -q '"status":"ok"'; then
+              echo "Base API health check passed"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Base API did not start"
+          exit 1
+      - run: pnpm build:cloudflare
+      - run: pnpm --filter @base/web exec wrangler deploy --dry-run
+      - run: pnpm deploy:preview:cloudflare --help

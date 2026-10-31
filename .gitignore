@@ -1,0 +1,15 @@
+node_modules/
+.pnpm-store/
+.next/
+.turbo/
+*.tsbuildinfo
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+
+.open-next/
+.wrangler/
+.dev.vars
