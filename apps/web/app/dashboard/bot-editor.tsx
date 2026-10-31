@@ -36,7 +36,8 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
   const [simulating, setSimulating] = useState(false);
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const { data, error } = await getSupabase().auth.getSession();
+    const supabase = await getSupabase();
+    const { data, error } = await supabase.auth.getSession();
     if (error || !data.session?.access_token) throw new Error('Your session expired. Sign in again.');
     const response = await fetch(new URL(path, apiUrl), {
       ...init,
