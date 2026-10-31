@@ -62,6 +62,11 @@ enabled keyword reply before activating one from the Base dashboard.
    connection and delivery allowlists restricted until monitoring, retention,
    token rotation and recovery are ready for broader access.
 
+Verified on 2026-11-01: schema privileges, CI #123, Render readiness, webhook
+401 without secret, `/ping → pong` simulation, activation, active status after
+refresh, and a real `pong` observed by the owner in Telegram. The private
+ledger recorded one `sent` update. Step 5 remains open; the test bot is active.
+
 The HTTP handler does not implement guaranteed delivery. A crash after claim
 but before send can leave a `processing` row and lose that reply. Resolve this
 with an outbox and operational recovery before a high-volume release.
