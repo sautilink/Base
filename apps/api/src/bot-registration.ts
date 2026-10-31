@@ -6,6 +6,7 @@ export type TelegramVerifiedBot = {
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const TELEGRAM_BOT_USERNAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
 
 /**
  * Produces only positional, parameterized INSERT values.
@@ -15,7 +16,7 @@ export function botRegistrationValues(ownerId: string, telegram: TelegramVerifie
   [string, number, string, string] {
   if (!UUID.test(ownerId)) throw new Error('Unverified owner identifier');
   if (!Number.isSafeInteger(telegram.id) || telegram.id <= 0) throw new Error('Invalid Telegram bot ID');
-  if (!/^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(telegram.username)) {
+  if (!TELEGRAM_BOT_USERNAME_PATTERN.test(telegram.username)) {
     throw new Error('Invalid Telegram bot username');
   }
   const displayName = typeof telegram.first_name === 'string'
