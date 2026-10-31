@@ -1,6 +1,6 @@
 # User-bot connection API (restricted test mode)
 
-The existing @SautiLinkBaseBot is a separate, working master bot on staging. The user-bot route is enabled only for two named Base test accounts; do not submit the master token to it. Base Auth has two signed-in accounts and no connected user bots. A rolled-back SQL test showed that each account could read only its own bot, command, reply rule and menu fixture. A live master-bot token attempt was rejected with a token-free `master_bot` audit outcome; no bot or credential row was created. Real connection with the separate BotFather bot and cross-account API behavior still need testing.
+The existing @SautiLinkBaseBot is a separate, working master bot on staging. The user-bot route is enabled only for two named Base test accounts; do not submit the master token to it. A rolled-back SQL test showed that each account could read only its own bot, command, reply rule and menu fixture. Two live master-bot token attempts were rejected with token-free `master_bot` audit outcomes and created no bot rows. A separate BotFather bot was then connected: one inactive bot row, one encrypted private credential, and one `connected` audit outcome were verified without reading the token. With that real row, the owner saw one bot under RLS and the other Base account saw zero.
 
 `POST /bots/connect` accepts `{ "token": "..." }` and an `Authorization: Bearer <Supabase user access token>` header.
 
@@ -25,7 +25,7 @@ The existing @SautiLinkBaseBot is a separate, working master bot on staging. The
 - Browser origins are restricted to the reviewed Base Preview and `https://base.sautilink.com`; only the two configured test accounts can connect bots while release gates remain open.
 
 ### Remaining release gates
-- Use the separate test bot to verify owner isolation in the browser and API, duplicate bot rejection, invalid token, Telegram outage and database rollback. The two-account database RLS probe passed and left no rows.
+- Verify the HTTP duplicate response and second-account browser/API behavior, invalid token and Telegram outage. The owner confirmed password sign-in after sign-out and dashboard refresh. Both the fixture RLS probe and real-bot owner/other-account read check passed. The live `telegram_bot_id` unique constraint rejected a duplicate insert with `ON CONFLICT DO NOTHING` (zero rows returned). A separate bot-plus-credential transaction was rolled back and left the original counts at one each. The dashboard clears its token field after successful connection; an empty required field prevents a second request, so no `already_connected` audit outcome has been observed yet.
 - Add edge-level throttling and operator-approved retention cleanup for private quota/audit rows.
 - Implement bot token rotation, disconnection/revocation and lifecycle cleanup.
 - Complete production monitoring and review the proxy topology before public use.

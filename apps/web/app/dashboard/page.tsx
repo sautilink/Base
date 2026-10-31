@@ -101,7 +101,7 @@ export default function DashboardPage() {
       const result = await response.json().catch(() => ({})) as { id?: string; message?: string | string[] };
       if (!response.ok) throw new Error(typeof result.message === 'string' ? result.message : 'Unable to connect bot.');
       setToken('');
-      setConnectMessage('Bot added to your account. Telegram message delivery is not active yet.');
+      setConnectMessage('Bot added to your account. The token field was cleared for safety. Telegram message delivery is not active yet.');
       const refreshed = await supabase.from('base_bots')
         .select('id,username,display_name,status')
         .eq('owner_id', data.session.user.id).order('created_at', { ascending: false });
@@ -191,7 +191,7 @@ export default function DashboardPage() {
         <form onSubmit={event => void connectBot(event)}>
           <label htmlFor="bot-token">BotFather token</label>
           <input id="bot-token" type="password" autoComplete="off" value={token}
-            onChange={event => setToken(event.target.value)} disabled={!botConnectEnabled || !apiUrl}
+            onChange={event => { setToken(event.target.value); setConnectMessage(''); }} disabled={!botConnectEnabled || !apiUrl}
             required placeholder="Paste bot token here" />
           <button type="submit" disabled={connecting || !apiUrl || !botConnectEnabled}>{connecting ? 'Connecting...' : 'Connect bot'}</button>
         </form>
