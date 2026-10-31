@@ -37,7 +37,7 @@ test('ignores commands addressed to another bot', () => {
   assert.equal(masterReply(message('/start@OtherRandomBot')), null);
   assert.equal(masterReply(message('/help@SautiLinkBaseBot'))?.chatId, 6);
   assert.equal(masterReply(message('/help!')), null);
-  assert.equal(masterReply(message('/help')).buttons?.[0]?.url, 'https://t.me/BotFather');
+  assert.equal(masterReply(message('/help'))?.buttons?.[0]?.url, 'https://t.me/BotFather');
 });
 
 test('only allows reviewed HTTPS dashboard destinations in buttons', () => {
