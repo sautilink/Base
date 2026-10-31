@@ -12,6 +12,11 @@ type Config = {
 };
 type ErrorResponse = { message?: string | string[] };
 type Simulation = { simulated: true; matchType: 'welcome' | 'command' | 'keyword' | 'none'; matchedValue: string | null; responseText: string | null };
+type DeliveryHealth = {
+  sent24h: number; ignored24h: number; unknown7d: number;
+  processing7d: number; staleProcessing7d: number;
+  lastUpdateAt: string | null; needsReview: boolean;
+};
 
 function describeError(value: ErrorResponse, status: number): string {
   if (typeof value.message === 'string') return value.message;
@@ -37,6 +42,9 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
   const [sampleResponse, setSampleResponse] = useState<Simulation | null>(null);
   const [simulating, setSimulating] = useState(false);
   const [cleanupPending, setCleanupPending] = useState(false);
+  const [deliveryHealth, setDeliveryHealth] = useState<DeliveryHealth | null>(null);
+  const [healthBusy, setHealthBusy] = useState(false);
+  const [healthError, setHealthError] = useState('');
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const supabase = await getSupabase();
@@ -54,6 +62,20 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
     const body = await response.json().catch(() => ({})) as ErrorResponse;
     if (!response.ok) throw new Error(describeError(body, response.status));
     return body as T;
+  }
+
+  async function refreshDeliveryHealth(): Promise<void> {
+    if (!deliveryEnabled) return;
+    setHealthBusy(true);
+    setHealthError('');
+    try {
+      const summary = await request<DeliveryHealth>('/bots/' + botId + '/delivery-health');
+      setDeliveryHealth(summary);
+    } catch {
+      setHealthError('Could not load delivery diagnostics. Bot configuration is still available.');
+    } finally {
+      setHealthBusy(false);
+    }
   }
 
   async function refresh(): Promise<void> {
@@ -82,6 +104,12 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId, apiUrl]);
 
+  useEffect(() => {
+    if (deliveryEnabled) void refreshDeliveryHealth();
+    // The editor remounts whenever the selected bot changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botId, apiUrl, deliveryEnabled]);
+
   async function mutate(work: () => Promise<unknown>, success: string): Promise<void> {
     setBusy(true);
     setNotice('');
@@ -104,6 +132,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
         '/bots/' + botId + '/' + action, { method: 'POST' }
       );
       await refresh();
+      void refreshDeliveryHealth();
       onStatusChange(result.status);
       setCleanupPending(result.webhookCleanupPending === true);
       setNotice(action === 'activate' ? 'Bot activated. Saved replies are now live on Telegram.' :
@@ -201,6 +230,27 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
               onClick={() => void changeDelivery('deactivate')}>Retry webhook cleanup</button>}
           </>}
       </div>
+      {deliveryEnabled && <section className="builder-section" aria-label="Delivery health">
+        <div className="delivery-health-heading">
+          <h3>Delivery health</h3>
+          <button type="button" className="secondary" disabled={healthBusy}
+            onClick={() => void refreshDeliveryHealth()}>{healthBusy ? 'Checking...' : 'Refresh status'}</button>
+        </div>
+        <p>Private Telegram message delivery, summarized without storing chats or bot tokens. The figures below are diagnostic—not proof of receipt.</p>
+        {healthError && <p className="notice" role="status">{healthError}</p>}
+        {deliveryHealth && <>
+          <div className="delivery-health-grid" aria-label="Delivery statistics">
+            <div><strong>{deliveryHealth.sent24h}</strong><small>Accepted · 24h</small></div>
+            <div><strong>{deliveryHealth.ignored24h}</strong><small>Ignored · 24h</small></div>
+            <div><strong>{deliveryHealth.unknown7d}</strong><small>Unknown · 7d</small></div>
+            <div><strong>{deliveryHealth.staleProcessing7d}</strong><small>Stalled over 5m · 7d</small></div>
+          </div>
+          {deliveryHealth.needsReview ?
+            <p className="notice" role="status">Some deliveries need operator review. Telegram may already have sent an unknown response, so Base will not retry it automatically. You can pause the bot above.</p> :
+            <p className="notice" role="status">No unknown or stalled deliveries found in the seven-day view.</p>}
+          <p className="notice">Processing updates (7d): {deliveryHealth.processing7d}. Last update within seven days: {deliveryHealth.lastUpdateAt ? new Date(deliveryHealth.lastUpdateAt).toLocaleString() : 'None'}.</p>
+        </>}
+      </section>}
       <form className="builder-section" onSubmit={event => void saveWelcome(event)}>
         <h3>Welcome message</h3>
         <p>Text to send when someone starts your bot.</p>
