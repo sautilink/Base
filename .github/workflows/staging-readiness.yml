@@ -1,0 +1,28 @@
+name: Base staging readiness probe
+on:
+  push:
+    branches: [feat/phase-1-foundation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify Render staging liveness and database readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://sautilink-base-api-staging.onrender.com"
+          for path in health health/ready; do
+            echo "Probing /$path"
+            status="$(curl --silent --show-error --location --retry 4 --retry-delay 10 --connect-timeout 10 --max-time 90 --output response.json --write-out '%{http_code}' "$endpoint/$path")"
+            echo "Status: $status"
+            # The endpoints disclose no credentials. Echo only their response.
+            cat response.json
+            echo
+            test "$status" = "200" || exit 1
+          done
