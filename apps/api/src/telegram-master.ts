@@ -10,8 +10,11 @@ type TelegramUpdate = {
 };
 
 export function verifyTelegramSecret(provided: string | undefined, expected: string | undefined): boolean {
-  if (!provided || !expected || expected.length < 16 || provided.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+  if (!provided || !expected || expected.length < 16) return false;
+  const received = Buffer.from(provided, 'utf8');
+  const configured = Buffer.from(expected, 'utf8');
+  if (received.length !== configured.length) return false;
+  return timingSafeEqual(received, configured);
 }
 
 export function masterReply(body: unknown): MasterReply {
