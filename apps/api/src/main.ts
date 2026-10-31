@@ -19,7 +19,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useBodyParser('json', { limit: '16kb' });
   const origin = process.env.WEB_ORIGIN;
-  if (origin) app.enableCors({ origin, methods: ['POST', 'GET'], allowedHeaders: ['Authorization', 'Content-Type'] });
+  if (origin) app.enableCors({ origin, methods: ['GET', 'POST', 'PATCH', 'DELETE'], allowedHeaders: ['Authorization', 'Content-Type'] });
   await app.listen(Number(process.env.PORT ?? 3001), '0.0.0.0');
 }
 
