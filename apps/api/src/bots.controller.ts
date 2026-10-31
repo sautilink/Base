@@ -10,6 +10,12 @@ type TelegramMe = { ok: boolean; result?: { id: number; is_bot: boolean; usernam
 export class BotsController {
   @Post('connect')
   async connect(@Headers('authorization') authorization: string | undefined, @Body() body: ConnectPayload) {
+    // Staging is intentionally closed until IP throttling, audit logging and
+    // multi-tenant authorization tests have passed. Telegram tokens must not
+    // reach getMe while this gate is disabled.
+    if (process.env.BOT_CONNECT_ENABLED !== 'true') {
+      throw new HttpException('Bot connections are not enabled on this staging environment', HttpStatus.SERVICE_UNAVAILABLE);
+    }
     const ownerId = await verifiedUserId(authorization);
     if (!body || typeof body.token !== 'string' || !BOT_TOKEN_PATTERN.test(body.token)) {
       throw new HttpException('Invalid bot token format', HttpStatus.BAD_REQUEST);
