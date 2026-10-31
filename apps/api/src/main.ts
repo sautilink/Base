@@ -151,8 +151,8 @@ async function bootstrap() {
   // Express req.ip uses the rightmost forwarded address from this one hop.
   app.set('trust proxy', 1);
   app.useBodyParser('json', { limit: '16kb' });
-  const origin = process.env.WEB_ORIGIN;
-  if (origin) app.enableCors({ origin, methods: ['GET', 'POST', 'PATCH', 'DELETE'], allowedHeaders: ['Authorization', 'Content-Type'] });
+  const origins = [process.env.WEB_ORIGIN, 'https://base.sautilink.com'].filter((value): value is string => !!value);
+  app.enableCors({ origin: origins, methods: ['GET', 'POST', 'PATCH', 'DELETE'], allowedHeaders: ['Authorization', 'Content-Type'] });
   await app.listen(Number(process.env.PORT ?? 3001), '0.0.0.0');
   // Two independent flags are required for any external Telegram side effect.
   // Never auto-register a webhook just because code was deployed.

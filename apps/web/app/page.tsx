@@ -10,7 +10,6 @@ export default function Home() {
       <Link href="/login" className="primary-link">Sign in to get started</Link>
       <Link href="/dashboard" className="secondary-link">Open dashboard</Link>
     </div>
-    <p className="notice" style={{ marginTop: 24 }}>Preview version: commands and replies can be configured once the Base API is connected.
-      Telegram delivery is not active yet.</p>
+    <p className="notice" style={{ marginTop: 24 }}>Base is in early access. Telegram delivery for connected bots is not active yet.</p>
   </section></main>;
 }

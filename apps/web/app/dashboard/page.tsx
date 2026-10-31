@@ -10,7 +10,8 @@ export default function DashboardPage() {
   const [status, setStatus] = useState('Checking your session...');
   const [bots, setBots] = useState<Bot[]>([]);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
-  const [signedIn, setSignedIn] = useState(false);
+  const [authState, setAuthState] = useState<'loading' | 'signed-in' | 'signed-out' | 'error'>('loading');
+  const [authAttempt, setAuthAttempt] = useState(0);
   const [token, setToken] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [connectMessage, setConnectMessage] = useState('');
@@ -22,14 +23,28 @@ export default function DashboardPage() {
     async function load() {
       try {
         const supabase = await getSupabase();
-        const publicConfig = await getPublicBaseConfig();
         if (!active) return;
         setApiUrl(getBaseApiUrl());
-        setBotConnectEnabled(publicConfig.botConnectEnabled);
+        const { data: saved, error: restoreError } = await supabase.auth.getSession();
+        if (!active) return;
+        if (restoreError) {
+          setAuthState('error');
+          setStatus('Unable to restore your saved session. Please retry.');
+          return;
+        }
+        if (!saved.session) {
+          setAuthState('signed-out');
+          setStatus('Please sign in to access your bots.');
+          return;
+        }
         const { data, error } = await supabase.auth.getUser();
         if (!active) return;
-        if (error || !data.user) { setStatus('Please sign in to access your bots.'); return; }
-        setSignedIn(true);
+        if (error || !data.user) {
+          setAuthState('error');
+          setStatus('Unable to verify your saved session. Please retry.');
+          return;
+        }
+        setAuthState('signed-in');
         const result = await supabase.from('base_bots')
           .select('id,username,display_name,status')
           .eq('owner_id', data.user.id).order('created_at', { ascending: false });
@@ -40,13 +55,23 @@ export default function DashboardPage() {
           setSelectedBotId(result.data?.[0]?.id ?? null);
           setStatus('');
         }
+        try {
+          const publicConfig = await getPublicBaseConfig();
+          if (active) setBotConnectEnabled(publicConfig.botConnectEnabled);
+        } catch {
+          // Authentication and bot listing stay usable during an API cold start.
+          if (active) setBotConnectEnabled(false);
+        }
       } catch (error) {
-        if (active) setStatus(error instanceof Error ? error.message : 'Dashboard unavailable.');
+        if (active) {
+          setAuthState('error');
+          setStatus(error instanceof Error ? error.message : 'Dashboard unavailable.');
+        }
       }
     }
     void load();
     return () => { active = false; };
-  }, []);
+  }, [authAttempt]);
 
   async function connectBot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,12 +116,17 @@ export default function DashboardPage() {
       <div><span className="eyebrow">SAUTILINK BASE · DASHBOARD</span>
         <h1>Your bots.</h1>
         <p>Build smarter Telegram bots. All features are free.</p></div>
-      {signedIn && <button className="secondary" type="button" onClick={() => void signOut()}>Sign out</button>}
+      {authState === 'signed-in' && <button className="secondary" type="button" onClick={() => void signOut()}>Sign out</button>}
     </div>
     {status && <p role="status" className="notice">{status}</p>}
-    {!signedIn && <Link href="/login">Sign in to continue</Link>}
+    {authState === 'signed-out' && <Link href="/login">Sign in to continue</Link>}
+    {authState === 'error' && <button className="secondary" type="button" onClick={() => {
+      setAuthState('loading');
+      setStatus('Checking your session...');
+      setAuthAttempt(value => value + 1);
+    }}>Retry session check</button>}
 
-    {signedIn && <>
+    {authState === 'signed-in' && <>
       <section className="builder-section">
         <h2>Connect a Telegram bot</h2>
         <p>Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">BotFather</a>, then connect it here. Bot tokens are secrets; only paste one into this secure form, never in chat or GitHub.</p>

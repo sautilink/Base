@@ -14,6 +14,16 @@ const STAGING_API_ORIGIN = 'https://sautilink-base-api-staging.onrender.com';
 let publicConfig: Promise<PublicBaseConfig> | null = null;
 let supabaseClient: Promise<SupabaseClient> | null = null;
 
+function buildAuthConfig(): Pick<PublicBaseConfig, 'supabaseUrl' | 'supabasePublishableKey'> | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url && !key) return null;
+  if (url !== BASE_PROJECT_URL || !key?.startsWith('sb_publishable_')) {
+    throw new Error('Untrusted SautiLink Base authentication settings.');
+  }
+  return { supabaseUrl: BASE_PROJECT_URL, supabasePublishableKey: key };
+}
+
 export function getBaseApiUrl(): string | null {
   if (typeof window === 'undefined') return null;
   // This staging fallback is permitted ONLY for the isolated GitHub branch
@@ -76,7 +86,9 @@ export async function getPublicBaseConfig(): Promise<PublicBaseConfig> {
 export async function getSupabase(): Promise<SupabaseClient> {
   if (!supabaseClient) {
     supabaseClient = (async () => {
-      const config = await getPublicBaseConfig();
+      // Build-time public settings let the browser restore a saved session
+      // without waiting for the staging API to wake on every page refresh.
+      const config = buildAuthConfig() ?? await getPublicBaseConfig();
       return createClient(config.supabaseUrl, config.supabasePublishableKey, {
         auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
       });
