@@ -9,6 +9,7 @@ import { enforceBotConnectRateLimit } from './connect-rate-limit';
 import { ownerBotToken } from './user-bot-credential';
 import { ForeignWebhookError, registerUserBotWebhook, removeUserBotWebhookIfOwned, userBotWebhookSecret } from './user-bot-telegram';
 import { verifyTelegramBotToken } from './telegram-verify';
+import { probeUserBotLedgerWrite } from './user-bot-update-ledger';
 
 type BotRow = { id: string; telegram_bot_id: string; username: string; status: string; welcome_message: string };
 
@@ -50,6 +51,7 @@ export class UserBotLifecycleController {
       throw new ConflictException('Configure a welcome message, command, or keyword reply before activation');
     }
     await enforceBotConnectRateLimit(ownerId);
+    await probeUserBotLedgerWrite(bot.id);
 
     let token: string;
     try { token = await ownerBotToken(botId, ownerId); }

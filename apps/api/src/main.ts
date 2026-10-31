@@ -117,12 +117,14 @@ class HealthController {
       if (process.env.USER_BOT_DELIVERY_ENABLED === 'true') {
         const delivery = await db.query<{
           owner_credential: boolean; active_credential: boolean; browser_credential: boolean;
+          browser_owner_credential: boolean;
           bot_status_update: boolean; ledger_select: boolean; ledger_insert: boolean; ledger_update: boolean;
           browser_ledger: boolean;
         }>(`select
           has_function_privilege(current_user, 'base_private.owner_bot_credential(uuid,uuid)', 'EXECUTE') as owner_credential,
           has_function_privilege(current_user, 'base_private.active_bot_credential(uuid)', 'EXECUTE') as active_credential,
           has_function_privilege('authenticated', 'base_private.active_bot_credential(uuid)', 'EXECUTE') as browser_credential,
+          has_function_privilege('authenticated', 'base_private.owner_bot_credential(uuid,uuid)', 'EXECUTE') as browser_owner_credential,
           has_column_privilege(current_user, 'public.base_bots', 'status', 'UPDATE') as bot_status_update,
           has_column_privilege(current_user, 'base_private.user_bot_update_ledger', 'update_id', 'SELECT') as ledger_select,
           has_column_privilege(current_user, 'base_private.user_bot_update_ledger', 'status', 'INSERT') as ledger_insert,
@@ -130,6 +132,7 @@ class HealthController {
           has_table_privilege('authenticated', 'base_private.user_bot_update_ledger', 'SELECT') as browser_ledger`);
         const permission = delivery.rows[0];
         if (!permission?.owner_credential || !permission.active_credential || permission.browser_credential ||
+            permission.browser_owner_credential ||
             !permission.bot_status_update || !permission.ledger_select || !permission.ledger_insert ||
             !permission.ledger_update || permission.browser_ledger) {
           throw new Error('Unexpected user-bot delivery privileges');

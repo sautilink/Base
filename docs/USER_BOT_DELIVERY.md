@@ -12,7 +12,9 @@ enabled keyword reply before activating one from the Base dashboard.
   replace another application's webhook, registers only the fixed Base
   staging URL, then confirms Telegram's webhook URL before marking the bot
   active. The registration uses `allowed_updates: ['message']`, one connection,
-  a per-bot secret header and `drop_pending_updates: false`.
+  a per-bot secret header and `drop_pending_updates: false`. Before calling
+  Telegram it performs a rolled-back ledger insert/update under the real
+  restricted Render database login.
 - `POST /bots/:botId/deactivate` marks the bot inactive before asking Telegram
   to remove the Base webhook. If Telegram is unavailable, Base stops replies
   immediately and reports that webhook cleanup needs a retry. A foreign
