@@ -6,6 +6,7 @@ import { pool, verifiedUserId } from './auth-db';
 import {
   InvalidBotConfig, parseCommand, parseEnabled, parseReplyRule, parseWelcome, validUuid
 } from './bot-config';
+import { simulateBotMessage } from './simulate-bot';
 
 function requireId(id: string): string {
   if (!validUuid(id)) throw new BadRequestException('Invalid bot or item ID');
@@ -55,6 +56,46 @@ export class BotConfigController {
       )
     ]);
     return { bot: bot.rows[0], commands: commands.rows, rules: rules.rows };
+  }
+
+  // Read-only simulator. It never calls Telegram or stores messages.
+  // It is deliberately owner-scoped and cannot inspect another user's bot.
+  @Post(':botId/simulate')
+  async simulate(@Headers('authorization') authorization: string | undefined,
+    @Param('botId') botId: string, @Body() body: unknown) {
+    const ownerId = await verifiedUserId(authorization);
+    requireId(botId);
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+        typeof (body as { message?: unknown }).message !== 'string') {
+      throw new BadRequestException('A message string is required');
+    }
+    const message = (body as { message: string }).message.trim();
+    if (!message || message.length > 4096) {
+      throw new BadRequestException('Message must contain 1 to 4096 characters');
+    }
+    const bot = await pool().query<{ username: string; welcome_message: string }>(
+      'select username, welcome_message from public.base_bots where id=$1 and owner_id=$2',
+      [botId, ownerId]
+    );
+    if (!bot.rows[0]) notFound();
+    const [commands, rules] = await Promise.all([
+      pool().query<{ command: string; response_text: string }>(
+        'select command, response_text from public.base_commands where bot_id=$1 order by command limit 100',
+        [botId]
+      ),
+      pool().query<{ keyword: string; response_text: string; enabled: boolean }>(
+        'select keyword, response_text, enabled from public.base_reply_rules where bot_id=$1 order by keyword limit 100',
+        [botId]
+      )
+    ]);
+    return {
+      simulated: true,
+      ...simulateBotMessage(message, {
+        ...bot.rows[0],
+        commands: commands.rows,
+        rules: rules.rows
+      })
+    };
   }
 
   @Patch(':botId/welcome')
