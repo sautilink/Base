@@ -11,6 +11,7 @@ type Config = {
   rules: Rule[];
 };
 type ErrorResponse = { message?: string | string[] };
+type Simulation = { simulated: true; matchType: 'welcome' | 'command' | 'keyword' | 'none'; matchedValue: string | null; responseText: string | null };
 
 function describeError(value: ErrorResponse, status: number): string {
   if (typeof value.message === 'string') return value.message;
@@ -29,6 +30,10 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
   const [keyword, setKeyword] = useState('');
   const [ruleResponse, setRuleResponse] = useState('');
   const [editingRule, setEditingRule] = useState<string | null>(null);
+  const [ruleEnabled, setRuleEnabled] = useState(true);
+  const [sampleMessage, setSampleMessage] = useState('/start');
+  const [sampleResponse, setSampleResponse] = useState<Simulation | null>(null);
+  const [simulating, setSimulating] = useState(false);
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const { data, error } = await getSupabase().auth.getSession();
@@ -111,11 +116,30 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
     const method = editingRule ? 'PATCH' : 'POST';
     const path = '/bots/' + botId + '/rules' + (editingRule ? '/' + editingRule : '');
     await mutate(async () => {
-      await request(path, { method, body: JSON.stringify({ keyword, responseText: ruleResponse, enabled: true }) });
+      await request(path, { method, body: JSON.stringify({ keyword, responseText: ruleResponse, enabled: ruleEnabled }) });
       setEditingRule(null);
       setKeyword('');
       setRuleResponse('');
+      setRuleEnabled(true);
     }, 'Keyword reply saved. Telegram delivery is not activated yet.');
+  }
+
+  async function simulate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSimulating(true);
+    setSampleResponse(null);
+    setNotice('');
+    try {
+      const result = await request<Simulation>('/bots/' + botId + '/simulate', {
+        method: 'POST',
+        body: JSON.stringify({ message: sampleMessage })
+      });
+      setSampleResponse(result);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to test this message.');
+    } finally {
+      setSimulating(false);
+    }
   }
 
   return <section className="builder" aria-label="Bot editor">
@@ -136,6 +160,22 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
         <textarea id="welcome-message" maxLength={4000} rows={3}
           value={welcome} onChange={event => setWelcome(event.target.value)} />
         <button type="submit" disabled={busy}>{busy ? 'Saving...' : 'Save welcome message'}</button>
+      </form>
+
+      <form className="builder-section" onSubmit={event => void simulate(event)}>
+        <h3>Try your bot (simulation)</h3>
+        <p>Test a message against saved commands and keyword replies. No Telegram message is sent.</p>
+        <label htmlFor="simulated-message">Test message</label>
+        <input id="simulated-message" value={sampleMessage} maxLength={4096} required
+          placeholder="/start, /help or hello"
+          onChange={event => { setSampleMessage(event.target.value); setSampleResponse(null); }} />
+        <button type="submit" disabled={simulating || busy}>{simulating ? 'Testing...' : 'Test response'}</button>
+        {sampleResponse && <div className="simulated-output" role="status">
+          <strong>{sampleResponse.matchType === 'none' ? 'No matching reply' : 'Simulated bot reply'}</strong>
+          {sampleResponse.matchedValue && <small>Matched {sampleResponse.matchType}: {sampleResponse.matchedValue}</small>}
+          <p>{sampleResponse.responseText ?? 'This bot has no response configured for that message.'}</p>
+          <small>Preview only. The real Telegram bot has not sent anything.</small>
+        </div>}
       </form>
 
       <div className="builder-section">
@@ -186,7 +226,7 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
               {item.enabled ? 'Pause' : 'Enable'}
             </button>
             <button type="button" className="secondary" disabled={busy}
-              onClick={() => { setEditingRule(item.id); setKeyword(item.keyword); setRuleResponse(item.response_text); }}>Edit</button>
+              onClick={() => { setEditingRule(item.id); setKeyword(item.keyword); setRuleResponse(item.response_text); setRuleEnabled(item.enabled); }}>Edit</button>
             <button type="button" className="danger" disabled={busy}
               onClick={() => {
                 if (window.confirm('Delete keyword reply for ' + item.keyword + '?')) {
@@ -203,10 +243,15 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
           <label htmlFor="rule-response">Response text</label>
           <textarea id="rule-response" maxLength={4000} rows={3} required
             value={ruleResponse} onChange={event => setRuleResponse(event.target.value)} />
+          <label className="toggle-option" htmlFor="rule-enabled">
+            <input type="checkbox" id="rule-enabled" checked={ruleEnabled}
+              onChange={event => setRuleEnabled(event.target.checked)} />
+            Reply enabled
+          </label>
           <div className="inline-actions">
             <button type="submit" disabled={busy}>{editingRule ? 'Save reply' : 'Add reply'}</button>
             {editingRule && <button type="button" className="secondary"
-              onClick={() => { setEditingRule(null); setKeyword(''); setRuleResponse(''); }}>Cancel</button>}
+              onClick={() => { setEditingRule(null); setKeyword(''); setRuleResponse(''); setRuleEnabled(true); }}>Cancel</button>}
           </div>
         </form>
       </div>
