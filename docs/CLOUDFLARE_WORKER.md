@@ -36,6 +36,10 @@ Supabase Auth **Site URL** is `https://base.sautilink.com`, with
 Preview redirect may stay in the allowlist for isolated tests. Browser sessions
 are scoped to their URL origin, so signing in on the Preview does not sign in
 the custom domain. Sign in once at the custom domain and refresh there.
+The web app redirects `www.base.sautilink.com` to `base.sautilink.com` with a
+permanent redirect that preserves the path and query string. The Base API
+allows the canonical origin only; opening the dashboard on `www` previously
+caused the bot form and editor requests to fail CORS.
 
 The separate Base API on Render accepts CORS from the configured `WEB_ORIGIN`
 and `https://base.sautilink.com`. Its `BOT_CONNECT_ENABLED` guard is on for
@@ -56,6 +60,8 @@ verified, so the master bot opens the same origin.
    account separately before enabling bot connection.
 5. Check `OPTIONS` preflight from the custom domain against the Base API for
    authenticated editor routes. Verify only approved origins are accepted.
+6. Check that `https://www.base.sautilink.com/dashboard` redirects to
+   `https://base.sautilink.com/dashboard`, preserving any query string.
 
 Production and branch Preview settings are separate in Cloudflare. An existing
 Preview keeps its own build settings; changing **Previews Base** defaults does
