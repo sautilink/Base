@@ -1,22 +1,53 @@
-# Phase 2: Master Telegram Bot — staging readiness
+# Phase 2 — @SautiLinkBaseBot (staging activation checklist)
 
-The master bot is @SautiLinkBaseBot and SautiLink Base is free. The web and NestJS API are separate from the main SautiLink App.
+**Master bot:** @SautiLinkBaseBot — the existing Telegram bot (do not create a duplicate).
+**Scope:** SautiLink Base staging, separate from the SautiLink App.
+**Status:** webhook registration code is prepared, **not activated**. Keep PR #1 Draft and production unchanged.
 
-## Implemented
-- Private chat onboarding commands: /start, /help, /createbot and /dashboard. Commands addressed to other bots are ignored; inline URL buttons are restricted to @BotFather and approved SautiLink Base dashboard hosts.
-- Fail-closed webhook secret validation using a byte-length check and timingSafeEqual.
-- A server-only durable PostgreSQL ledger in `base_private.master_update_ledger` keyed by Telegram `update_id`.
-- Deduplication: a claimed update is processed at most once; duplicates are acknowledged without sending another reply.
-- Delivery states: `processing` while handling, `sent` for confirmed or no-reply updates and `unknown` after an unsuccessful/uncertain send attempt.
-- No message bodies, chat IDs, bot tokens or inbound payloads are persisted in the ledger.
-- Unit tests for Telegram command handling, secret validation and update ID parsing.
+## Already verified
+- Base API is live on Render staging and `GET /health/ready` verifies the isolated Base database and restricted role.
+- Cloudflare feature Preview supports real Supabase email login and session restoration (user reported PASS on 2026-10-31).
+- The master command router supports private `/start`, `/help`, `/createbot` and `/dashboard`, with trusted URLs only.
+- Telegram request secret validation and persistent update-ID deduplication are in place; unknown send outcomes require manual review.
+- A dedicated webhook secret is already stored in Render. Never copy or disclose it.
+- Runtime database access uses **column-level grants**, not broad table grants: master ledger reads only `update_id`, inserts `update_id/status`, updates `status`. Browser sessions have none of those privileges.
+- Activation preflight attempts a restricted-role ledger INSERT+UPDATE inside a transaction which is **ROLLED BACK**, with zero persistent test updates.
+- Automated tests cover strict bot identity matching, rejection of an existing webhook at another URL, approved staging destination, no dropping queued updates, invalid tokens/secrets and both explicit activation flags.
 
-## Trade-off
-The ledger prioritizes **at-most-once send attempts**, not guaranteed delivery. If a process crashes after claiming an update but before sending, the update may stay in `processing` and its reply may be lost. If Telegram accepts a send but the network loses the HTTP response, the update is `unknown` and is not blindly retried. This avoids duplicate messages but requires monitoring and manual reconciliation. Do not represent this as exactly-once or full delivery reliability.
+## Controlled master webhook activation (not performed yet)
 
-## Monitoring (read-only)
+The following flags and values are configured **only in the private Render environment**, not in GitHub:
 
-Use the private project SQL editor as an authorized operator. No chat IDs, raw update payloads or bot tokens are stored in this ledger.
+| Variable | Status and purpose |
+| --- | --- |
+| `MASTER_BOT_ENABLED` | **false** until final live test; incoming requests return 404 |
+| `MASTER_BOT_REGISTER_WEBHOOK` | **false** until live test; no Telegram registration calls happen |
+| `TELEGRAM_WEBHOOK_SECRET` | Existing, stored privately in Render |
+| `BOT_TOKEN` | Must be provided privately by the owner from the **existing @SautiLinkBaseBot** in BotFather (never in chat) |
+| `BASE_DASHBOARD_URL` | Exact approved HTTPS Base Preview URL |
+| `BOT_CONNECT_ENABLED` | **false**; unrelated user-bot connections remain disabled |
+
+When **both** `MASTER_BOT_ENABLED=true` and `MASTER_BOT_REGISTER_WEBHOOK=true` are intentionally set on the staging service, the server:
+
+1. Validates the token format, the dashboard redirect host and webhook secret syntax.
+2. Probes the private database ledger using real INSERT and UPDATE with ROLLBACK.
+3. Calls Telegram `getMe` and verifies the token is for @SautiLinkBaseBot.
+4. Calls `getWebhookInfo`; refuses to overwrite another existing webhook destination.
+5. Calls `setWebhook` for the **fixed** Render staging URL and the secret header, with `allowed_updates=['message']`, `max_connections=1` and `drop_pending_updates=false`.
+6. Logs only an acknowledgement, **never** a Telegram token, URL containing the token, message/chat content, bearer header or webhook secret.
+
+If any preflight fails, registration is not attempted. Do not enable these flags without an operator able to monitor the rollout and revert the switches. Enabling them is an explicit live integration action, **not** part of routine staging deploys.
+
+## Testing after activating
+- Operator opens the existing master Telegram bot in a private chat and sends `/start`, `/help`, `/createbot`, `/dashboard`.
+- The correct approved Cloudflare Preview dashboard opens from inline buttons.
+- Duplicate `update_id` is acknowledged without a second response; no invalid secret is accepted.
+- Investigate any unmatched / unknown or stalled ledger records before rollout.
+
+**Critical limitation:** This is currently at-most-once sending, not guaranteed delivery or exactly-once semantics. On crash after claim, a response may be lost. If Telegram accepts a send and the request times out, the ledger records `unknown`; do not blindly retry.
+
+## Monitoring (read-only, operator only)
+Run in the **dedicated Base Supabase** SQL editor, not from the browser client:
 
 ```sql
 select status, count(*) as updates
@@ -24,8 +55,6 @@ from base_private.master_update_ledger
 where created_at > now() - interval '24 hours'
 group by status order by status;
 ```
-
-Review uncertain sends and stalled claims before enabling higher traffic:
 
 ```sql
 select update_id, status, created_at
@@ -35,22 +64,8 @@ where status = 'unknown'
 order by created_at desc limit 50;
 ```
 
-Do not automatically resend 'unknown' or stale 'processing' updates; Telegram may have delivered the message.
-
-## Database
-Applied migration `master_update_ledger` to **dedicated** Base Supabase project `gtzqirfwghijuzhvrnha`; RLS enabled, no public/browser privileges. Only a reviewed server-only database role may write the ledger.
-
-## Still disabled
-`MASTER_BOT_ENABLED=false` on Render. No live Telegram webhook registered or BotFather token installed. The NestJS API on Render currently has no server DB connection or master bot token. Do not enable `MASTER_BOT_ENABLED` until all gates are passed.
-
-## Activation gates (sequential)
-1. Use the dedicated NOLOGIN database capability role `base_api_runtime` already created in Base, provision a distinct private LOGIN role (never the Supabase admin/postgres role), and store the exact reviewed Session Pooler `DATABASE_URL` exclusively in Render secrets. The pooler hostname must be copied from the Base Supabase Connect panel, not inferred from region. Test TLS and role permissions. Test TLS and private-table write permissions. Never borrow SautiLink App credentials.
-2. Configure the Base API auth publishable key (not a server secret), and verify web Auth end-to-end.
-3. Configure a strong Telegram master token and webhook secret **inside Render only**. Set `BASE_DASHBOARD_URL` to the reviewed HTTPS dashboard address; the bot rejects untrusted redirect hosts. Never paste them into GitHub or chat.
-4. Add IP throttling / inbound webhook abuse controls, monitored unknown/processing states, graceful shutdown and delivery telemetry. Consider a durable outbox/worker if reliability requirements favor retry with idempotent delivery semantics.
-5. Verify private-message-only responses against a test user and ensure duplicates never trigger a second send.
-6. Set the Telegram webhook to the reviewed HTTPS API URL and supply the secret_token only once all checks pass.
-7. Review and approve a production deployment separately; do not merge Draft PR #1 automatically.
-
-## Status
-Phase 2 implementation is prepared in the feature branch and the dedicated Base database. Production activation and real Telegram delivery are **not** completed.
+## Later release gates
+- IP / edge throttling and abuse monitoring for the public API.
+- Multi-account authorization and encryption/rollback tests for connected *user* bots.
+- Bounded retry/queue work if the platform needs guaranteed delivery.
+- Explicit production review. Do not merge Draft PR #1 or modify the primary SautiLink App.
