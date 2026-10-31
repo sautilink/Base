@@ -119,7 +119,7 @@ class HealthController {
           owner_credential: boolean; active_credential: boolean; browser_credential: boolean;
           browser_owner_credential: boolean;
           bot_status_update: boolean; ledger_select: boolean; ledger_insert: boolean; ledger_update: boolean;
-          browser_ledger: boolean;
+          browser_ledger: boolean; delivery_summary: boolean; browser_delivery_summary: boolean;
         }>(`select
           has_function_privilege(current_user, 'base_private.owner_bot_credential(uuid,uuid)', 'EXECUTE') as owner_credential,
           has_function_privilege(current_user, 'base_private.active_bot_credential(uuid)', 'EXECUTE') as active_credential,
@@ -129,12 +129,15 @@ class HealthController {
           has_column_privilege(current_user, 'base_private.user_bot_update_ledger', 'update_id', 'SELECT') as ledger_select,
           has_column_privilege(current_user, 'base_private.user_bot_update_ledger', 'status', 'INSERT') as ledger_insert,
           has_column_privilege(current_user, 'base_private.user_bot_update_ledger', 'status', 'UPDATE') as ledger_update,
-          has_table_privilege('authenticated', 'base_private.user_bot_update_ledger', 'SELECT') as browser_ledger`);
+          has_table_privilege('authenticated', 'base_private.user_bot_update_ledger', 'SELECT') as browser_ledger,
+          has_function_privilege(current_user, 'base_private.owner_bot_delivery_summary(uuid,uuid)', 'EXECUTE') as delivery_summary,
+          has_function_privilege('authenticated', 'base_private.owner_bot_delivery_summary(uuid,uuid)', 'EXECUTE') as browser_delivery_summary`);
         const permission = delivery.rows[0];
         if (!permission?.owner_credential || !permission.active_credential || permission.browser_credential ||
             permission.browser_owner_credential ||
             !permission.bot_status_update || !permission.ledger_select || !permission.ledger_insert ||
-            !permission.ledger_update || permission.browser_ledger) {
+            !permission.ledger_update || permission.browser_ledger ||
+            !permission.delivery_summary || permission.browser_delivery_summary) {
           throw new Error('Unexpected user-bot delivery privileges');
         }
       }
