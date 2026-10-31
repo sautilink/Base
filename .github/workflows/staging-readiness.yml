@@ -26,3 +26,38 @@ jobs:
             echo
             test "$status" = "200" || exit 1
           done
+
+      - name: Verify browser configuration and staging safety gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://sautilink-base-api-staging.onrender.com"
+          preview="https://feat-phase-1-foundation-sautilink-base-web.dr-charles-services.workers.dev"
+          status="$(curl --silent --show-error --connect-timeout 10 --max-time 90             --output client-config.json --write-out '%{http_code}' "$endpoint/client-config")"
+          test "$status" = "200"
+          # Never echo config contents to logs; this endpoint should contain
+          # only the Base publishable key and safe feature flags.
+          node -e '
+            const assert = require("node:assert/strict");
+            const fs = require("node:fs");
+            const c = JSON.parse(fs.readFileSync("client-config.json", "utf8"));
+            assert.deepEqual(Object.keys(c).sort(), [
+              "botConnectEnabled", "masterBotEnabled", "supabasePublishableKey", "supabaseUrl"
+            ]);
+            assert.equal(c.supabaseUrl, "https://gtzqirfwghijuzhvrnha.supabase.co");
+            assert.ok(c.supabasePublishableKey.startsWith("sb_publishable_"));
+            assert.equal(c.botConnectEnabled, false);
+            assert.equal(c.masterBotEnabled, false);
+          '
+          echo "Public Base configuration is safe and connect/master bot gates are OFF"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             --request POST --header 'Content-Type: application/json'             --data '{}' "$endpoint/bots/connect")"
+          test "$status" = "503"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             --request POST --header 'Content-Type: application/json'             --data '{}' "$endpoint/telegram/master")"
+          test "$status" = "404"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             "$endpoint/bots/00000000-0000-4000-8000-000000000000/config")"
+          test "$status" = "401"
+          echo "Blocked unauthenticated bot access, disabled connection and master webhook"
+          curl --silent --show-error --output /dev/null --dump-header cors-headers.txt             --request OPTIONS --header "Origin: $preview"             --header 'Access-Control-Request-Method: PATCH'             --header 'Access-Control-Request-Headers: authorization,content-type'             "$endpoint/bots/00000000-0000-4000-8000-000000000000/welcome"
+          grep -iqF "Access-Control-Allow-Origin: $preview" cors-headers.txt
+          grep -i 'Access-Control-Allow-Methods:' cors-headers.txt | grep -qi 'PATCH'
+          echo "Trusted Preview CORS preflight accepts authenticated editor requests"
