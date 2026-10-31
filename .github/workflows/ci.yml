@@ -21,6 +21,20 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm --filter @base/api test
       - run: pnpm build
+      - name: API health smoke test
+        run: |
+          PORT=33331 node apps/api/dist/main.js &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --silent --fail http://127.0.0.1:33331/health | grep -q '"status":"ok"'; then
+              echo "Base API health check passed"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Base API did not start"
+          exit 1
       - run: pnpm build:cloudflare
       - run: pnpm --filter @base/web exec wrangler deploy --dry-run
       - run: pnpm deploy:preview:cloudflare --help
