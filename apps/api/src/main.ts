@@ -18,8 +18,9 @@ class HealthController {
   async ready() {
     let phase = 'configuration';
     try {
+      const db = pool();
       phase = 'database-query';
-      const result = await pool().query<{
+      const result = await db.query<{
         role_ok: boolean;
         inherited: boolean;
         bots_access: boolean;
