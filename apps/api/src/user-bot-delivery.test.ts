@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { handleUserBotUpdate, type DeliveryAdapter } from './user-bot-delivery';
+
+const botId = '3d45cfeb-6c0d-42ee-aec7-849e60e66ef0';
+const message = { update_id: 77, message: { chat: { id: 123, type: 'private' }, text: '/start' } };
+
+function fixture(status = 'active') {
+  const claimed = new Set<number>();
+  const sends: Array<{ chatId: number; text: string }> = [];
+  const completed: string[] = [];
+  const adapter: DeliveryAdapter = {
+    async loadBot() { return { id: botId, username: 'SampleSupportBot', status, welcome_message: 'Welcome!' }; },
+    async loadRules() { return { commands: [], rules: [] }; },
+    async activeToken() { return 'synthetic-token'; },
+    async claim(_botId, updateId) {
+      if (claimed.has(updateId)) return false;
+      claimed.add(updateId);
+      return true;
+    },
+    async complete(_botId, _updateId, state) { completed.push(state); },
+    async send(_token, chatId, text) { sends.push({ chatId, text }); }
+  };
+  return { adapter, sends, completed, claimed };
+}
+
+test('sends one configured private reply and deduplicates a repeated Telegram update', async () => {
+  const f = fixture();
+  assert.deepEqual(await handleUserBotUpdate(botId, 77, message, f.adapter), { ok: true });
+  assert.deepEqual(await handleUserBotUpdate(botId, 77, message, f.adapter), { ok: true, duplicate: true });
+  assert.deepEqual(f.sends, [{ chatId: 123, text: 'Welcome!' }]);
+  assert.deepEqual(f.completed, ['sent']);
+});
+
+test('ignores inactive bots and non-private updates without sending messages', async () => {
+  const inactive = fixture('inactive');
+  assert.deepEqual(await handleUserBotUpdate(botId, 78, message, inactive.adapter), { ok: true, inactive: true });
+  assert.equal(inactive.claimed.size, 0);
+
+  const group = fixture();
+  const body = { update_id: 79, message: { chat: { id: -123, type: 'group' }, text: '/start' } };
+  assert.deepEqual(await handleUserBotUpdate(botId, 79, body, group.adapter), { ok: true });
+  assert.deepEqual(group.completed, ['ignored']);
+  assert.equal(group.sends.length, 0);
+});
+
+test('retries database failures before claim and never resends after an ambiguous send', async () => {
+  const before = fixture();
+  before.adapter.loadRules = async () => { throw new Error('database unavailable'); };
+  await assert.rejects(handleUserBotUpdate(botId, 80, message, before.adapter));
+  assert.equal(before.claimed.size, 0);
+
+  const after = fixture();
+  after.adapter.send = async () => { throw new Error('ambiguous Telegram timeout'); };
+  assert.deepEqual(await handleUserBotUpdate(botId, 81, message, after.adapter), { ok: true });
+  assert.deepEqual(await handleUserBotUpdate(botId, 81, message, after.adapter), { ok: true, duplicate: true });
+  assert.deepEqual(after.completed, ['unknown']);
+});

@@ -82,7 +82,7 @@ The official CA download is available through the project's authenticated dashbo
 3. Test Telegram getMe error handling, duplication, DB rollback, token encryption and deletion with safe test bots only.
 4. Verify Supabase login, RLS isolation, strict CORS and valid TLS from a genuine HTTPS staging frontend.
 5. Add production-safe request logs, exception redaction, key rotation, monitoring, backups and incident response.
-6. Master webhook has at-most-once update-ID deduplication and user-confirmed private-chat delivery. Evaluate reliable outbox delivery before high-volume production rollout or enabling any user-bot webhook.
+6. Master and restricted user-bot webhooks use at-most-once update-ID deduplication. The master bot has user-confirmed private-chat delivery; verify the separate test bot before claiming user-bot delivery works. Evaluate reliable outbox delivery before high-volume or broad user-bot rollout. See `docs/USER_BOT_DELIVERY.md`.
 7. Base web builds embed only the Base API URL, Supabase project URL, and browser-safe publishable key. Do not copy service keys or admin secrets into the web build.
 
 No automatic production deployment occurs from this document. Keep PR #1 Draft until these gates are reviewed.

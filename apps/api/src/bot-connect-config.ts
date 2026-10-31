@@ -22,3 +22,14 @@ export function assertBotConnectConfigured(env: NodeJS.ProcessEnv): void {
   // Validate the dedicated HMAC key without storing or logging the probe digest.
   hashedClientIp('127.0.0.1', env.BOT_CONNECT_IP_HMAC_KEY);
 }
+
+/** User-bot delivery is a separate opt-in from token connection and master-bot delivery. */
+export function assertUserBotDeliveryConfigured(env: NodeJS.ProcessEnv): void {
+  if (env.USER_BOT_DELIVERY_ENABLED !== 'true') return;
+  if (env.BOT_CONNECT_ENABLED !== 'true') throw new Error('User-bot delivery requires restricted bot connection');
+  assertBotConnectConfigured(env);
+  requireEncryptionKey(env.USER_BOT_WEBHOOK_SECRET_KEY);
+  if (env.USER_BOT_WEBHOOK_SECRET_KEY === env.BOT_TOKEN_ENCRYPTION_KEY) {
+    throw new Error('User-bot webhook signing requires a separate key');
+  }
+}

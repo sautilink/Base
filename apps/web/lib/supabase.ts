@@ -5,6 +5,7 @@ type PublicBaseConfig = {
   supabasePublishableKey: string;
   botConnectEnabled: boolean;
   masterBotEnabled: boolean;
+  userBotDeliveryEnabled: boolean;
 };
 
 const BASE_PROJECT_URL = 'https://gtzqirfwghijuzhvrnha.supabase.co';
@@ -73,7 +74,9 @@ export async function getPublicBaseConfig(forceRefresh = false): Promise<PublicB
         supabaseUrl: BASE_PROJECT_URL,
         supabasePublishableKey: config.supabasePublishableKey,
         botConnectEnabled: config.botConnectEnabled,
-        masterBotEnabled: config.masterBotEnabled
+        masterBotEnabled: config.masterBotEnabled,
+        // An older API release may briefly coexist with the new web build.
+        userBotDeliveryEnabled: config.userBotDeliveryEnabled === true
       };
     })().catch(error => {
       // Cold-start and network failures must not permanently poison the page.

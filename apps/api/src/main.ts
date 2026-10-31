@@ -6,9 +6,11 @@ import { BotsController } from './bots.controller';
 import { BotConfigController } from './bot-config.controller';
 import { MasterWebhookController } from './master-webhook.controller';
 import { PublicConfigController } from './public-config.controller';
+import { UserBotLifecycleController } from './user-bot-lifecycle.controller';
+import { UserBotWebhookController } from './user-bot-webhook.controller';
 import { pool } from './auth-db';
 import { registerMasterWebhook } from './master-registration';
-import { assertBotConnectConfigured } from './bot-connect-config';
+import { assertBotConnectConfigured, assertUserBotDeliveryConfigured } from './bot-connect-config';
 
 @Controller('health')
 class HealthController {
@@ -112,6 +114,27 @@ class HealthController {
         });
         throw new Error('Unexpected Base database runtime privileges');
       }
+      if (process.env.USER_BOT_DELIVERY_ENABLED === 'true') {
+        const delivery = await db.query<{
+          owner_credential: boolean; active_credential: boolean; browser_credential: boolean;
+          bot_status_update: boolean; ledger_select: boolean; ledger_insert: boolean; ledger_update: boolean;
+          browser_ledger: boolean;
+        }>(`select
+          has_function_privilege(current_user, 'base_private.owner_bot_credential(uuid,uuid)', 'EXECUTE') as owner_credential,
+          has_function_privilege(current_user, 'base_private.active_bot_credential(uuid)', 'EXECUTE') as active_credential,
+          has_function_privilege('authenticated', 'base_private.active_bot_credential(uuid)', 'EXECUTE') as browser_credential,
+          has_column_privilege(current_user, 'public.base_bots', 'status', 'UPDATE') as bot_status_update,
+          has_column_privilege(current_user, 'base_private.user_bot_update_ledger', 'update_id', 'SELECT') as ledger_select,
+          has_column_privilege(current_user, 'base_private.user_bot_update_ledger', 'status', 'INSERT') as ledger_insert,
+          has_column_privilege(current_user, 'base_private.user_bot_update_ledger', 'status', 'UPDATE') as ledger_update,
+          has_table_privilege('authenticated', 'base_private.user_bot_update_ledger', 'SELECT') as browser_ledger`);
+        const permission = delivery.rows[0];
+        if (!permission?.owner_credential || !permission.active_credential || permission.browser_credential ||
+            !permission.bot_status_update || !permission.ledger_select || !permission.ledger_insert ||
+            !permission.ledger_update || permission.browser_ledger) {
+          throw new Error('Unexpected user-bot delivery privileges');
+        }
+      }
       return { status: 'ready', service: 'sautilink-base-api' };
     } catch (error) {
       const maybe = error as { code?: unknown; name?: unknown };
@@ -139,12 +162,16 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [HealthController, PublicConfigController, BotsController, BotConfigController, MasterWebhookController] })
+@Module({ controllers: [
+  HealthController, PublicConfigController, BotsController, BotConfigController,
+  MasterWebhookController, UserBotLifecycleController, UserBotWebhookController
+] })
 class AppModule {}
 
 async function bootstrap() {
   // A misconfigured opt-in must fail before the API accepts any bot token.
   assertBotConnectConfigured(process.env);
+  assertUserBotDeliveryConfigured(process.env);
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   // Render's load balancer is the ONE trusted ingress hop. Never trust an
   // arbitrary X-Forwarded-For chain (which a client can prepend/spoof).

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
-import { assertBotConnectConfigured, botConnectTestOwners } from './bot-connect-config';
+import { assertBotConnectConfigured, assertUserBotDeliveryConfigured, botConnectTestOwners } from './bot-connect-config';
 
 const ownerA = '00000000-0000-4000-8000-000000000001';
 const ownerB = '00000000-0000-4000-8000-000000000002';
@@ -38,4 +38,19 @@ test('staging bot connection accepts only two distinct test owners', () => {
   for (const ids of [ownerA, `${ownerA},${ownerA}`, `${ownerA},bad`, `${ownerA},${ownerB},${ownerA}`]) {
     assert.throws(() => botConnectTestOwners({ BOT_CONNECT_TEST_USER_IDS: ids }));
   }
+});
+
+test('user-bot delivery requires a separate webhook key and the restricted connection gate', () => {
+  assert.doesNotThrow(() => assertUserBotDeliveryConfigured({ USER_BOT_DELIVERY_ENABLED: 'false' }));
+  const enabled = {
+    ...configured,
+    USER_BOT_DELIVERY_ENABLED: 'true',
+    USER_BOT_WEBHOOK_SECRET_KEY: randomBytes(32).toString('base64')
+  };
+  assert.doesNotThrow(() => assertUserBotDeliveryConfigured(enabled));
+  assert.throws(() => assertUserBotDeliveryConfigured({ ...enabled, BOT_CONNECT_ENABLED: 'false' }));
+  assert.throws(() => assertUserBotDeliveryConfigured({ ...enabled, USER_BOT_WEBHOOK_SECRET_KEY: undefined }));
+  assert.throws(() => assertUserBotDeliveryConfigured({
+    ...enabled, USER_BOT_WEBHOOK_SECRET_KEY: configured.BOT_TOKEN_ENCRYPTION_KEY
+  }));
 });

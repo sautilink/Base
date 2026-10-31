@@ -30,4 +30,6 @@ The existing @SautiLinkBaseBot is a separate, working master bot on staging. The
 - Add edge-level throttling and operator-approved retention cleanup for private quota/audit rows.
 - Implement bot token rotation, disconnection/revocation and lifecycle cleanup.
 - Complete production monitoring and review the proxy topology before public use.
-- No webhooks or bot activation are performed by this endpoint.
+- No webhooks or bot activation are performed by this **connection** endpoint.
+  Restricted activation and delivery use separate owner-authenticated and
+  signed-webhook routes; see `docs/USER_BOT_DELIVERY.md`.

@@ -5,6 +5,7 @@ export type PublicBaseClientConfig = {
   supabasePublishableKey: string;
   botConnectEnabled: boolean;
   masterBotEnabled: boolean;
+  userBotDeliveryEnabled: boolean;
 };
 
 const BASE_SUPABASE_URL = 'https://gtzqirfwghijuzhvrnha.supabase.co';
@@ -21,7 +22,8 @@ export function publicClientConfig(env: NodeJS.ProcessEnv): PublicBaseClientConf
     supabaseUrl: BASE_SUPABASE_URL,
     supabasePublishableKey: publishableKey,
     botConnectEnabled: env.BOT_CONNECT_ENABLED === 'true',
-    masterBotEnabled: env.MASTER_BOT_ENABLED === 'true'
+    masterBotEnabled: env.MASTER_BOT_ENABLED === 'true',
+    userBotDeliveryEnabled: env.USER_BOT_DELIVERY_ENABLED === 'true'
   };
 }
 

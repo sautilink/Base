@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [connectMessage, setConnectMessage] = useState('');
   const [apiUrl, setApiUrl] = useState<string | null>(null);
   const [botConnectEnabled, setBotConnectEnabled] = useState(false);
+  const [userBotDeliveryEnabled, setUserBotDeliveryEnabled] = useState(false);
   const [connectConfigState, setConnectConfigState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -64,6 +65,7 @@ export default function DashboardPage() {
           const publicConfig = await getPublicBaseConfig();
           if (active) {
             setBotConnectEnabled(publicConfig.botConnectEnabled);
+            setUserBotDeliveryEnabled(publicConfig.userBotDeliveryEnabled);
             setConnectConfigState('ready');
           }
         } catch {
@@ -223,7 +225,10 @@ export default function DashboardPage() {
         {passwordMessage && <p role="status" className="notice">{passwordMessage}</p>}
       </section>
 
-      {selectedBotId && apiUrl && <BotEditor key={selectedBotId} botId={selectedBotId} apiUrl={apiUrl} />}
+      {selectedBotId && apiUrl && <BotEditor key={selectedBotId} botId={selectedBotId} apiUrl={apiUrl}
+        deliveryEnabled={userBotDeliveryEnabled}
+        onStatusChange={newStatus => setBots(current => current.map(bot =>
+          bot.id === selectedBotId ? { ...bot, status: newStatus } : bot))} />}
       <p className="dashboard-footer">Need help getting started? Visit <a href="https://t.me/SautiLinkBaseBot" target="_blank" rel="noreferrer">@SautiLinkBaseBot</a> for guidance.</p>
     </>}
   </section></main>;

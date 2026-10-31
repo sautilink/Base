@@ -12,10 +12,11 @@ const valid = {
 test('client configuration includes only browser-safe fields', () => {
   const config = publicClientConfig({ ...valid, DATABASE_URL: 'not-for-browsers', BOT_TOKEN_ENCRYPTION_KEY: 'also-private', BOT_TOKEN: 'private' });
   assert.deepEqual(Object.keys(config).sort(), [
-    'botConnectEnabled', 'masterBotEnabled', 'supabasePublishableKey', 'supabaseUrl'
+    'botConnectEnabled', 'masterBotEnabled', 'supabasePublishableKey', 'supabaseUrl', 'userBotDeliveryEnabled'
   ]);
   assert.equal(config.botConnectEnabled, false);
   assert.equal(config.masterBotEnabled, false);
+  assert.equal(config.userBotDeliveryEnabled, false);
   assert.ok(!JSON.stringify(config).includes('not-for-browsers'));
 });
 
@@ -28,4 +29,5 @@ test('wrong project and secret keys fail closed', () => {
 test('flags reflect only explicit true', () => {
   assert.equal(publicClientConfig({ ...valid, BOT_CONNECT_ENABLED: 'TRUE' }).botConnectEnabled, false);
   assert.equal(publicClientConfig({ ...valid, BOT_CONNECT_ENABLED: 'true' }).botConnectEnabled, true);
+  assert.equal(publicClientConfig({ ...valid, USER_BOT_DELIVERY_ENABLED: 'true' }).userBotDeliveryEnabled, true);
 });

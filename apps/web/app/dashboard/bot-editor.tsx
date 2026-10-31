@@ -19,7 +19,9 @@ function describeError(value: ErrorResponse, status: number): string {
   return 'Request failed (' + status + ').';
 }
 
-export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: string }) {
+export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChange }: {
+  botId: string; apiUrl: string; deliveryEnabled: boolean; onStatusChange: (status: string) => void
+}) {
   const [config, setConfig] = useState<Config | null>(null);
   const [notice, setNotice] = useState('Loading bot settings...');
   const [busy, setBusy] = useState(false);
@@ -34,6 +36,7 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
   const [sampleMessage, setSampleMessage] = useState('/start');
   const [sampleResponse, setSampleResponse] = useState<Simulation | null>(null);
   const [simulating, setSimulating] = useState(false);
+  const [cleanupPending, setCleanupPending] = useState(false);
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const supabase = await getSupabase();
@@ -93,11 +96,31 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
     }
   }
 
+  async function changeDelivery(action: 'activate' | 'deactivate'): Promise<void> {
+    setBusy(true);
+    setNotice('');
+    try {
+      const result = await request<{ status: string; webhookCleanupPending?: boolean }>(
+        '/bots/' + botId + '/' + action, { method: 'POST' }
+      );
+      await refresh();
+      onStatusChange(result.status);
+      setCleanupPending(result.webhookCleanupPending === true);
+      setNotice(action === 'activate' ? 'Bot activated. Saved replies are now live on Telegram.' :
+        result.webhookCleanupPending ? 'Bot paused. Telegram webhook cleanup will need a retry.' :
+          'Bot paused. Telegram replies are off.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to change bot delivery.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveWelcome(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await mutate(() => request('/bots/' + botId + '/welcome', {
       method: 'PATCH', body: JSON.stringify({ message: welcome })
-    }), 'Welcome message saved. Changes are not live until the Telegram runtime is activated.');
+    }), config?.bot.status === 'active' ? 'Welcome message saved and live.' : 'Welcome message saved. Activate the bot when ready.');
   }
 
   async function saveCommand(event: FormEvent<HTMLFormElement>) {
@@ -109,7 +132,7 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
       setEditingCommand(null);
       setCommand('');
       setCommandResponse('');
-    }, 'Command saved. Telegram delivery is not activated yet.');
+    }, config?.bot.status === 'active' ? 'Command saved and live.' : 'Command saved. Activate the bot when ready.');
   }
 
   async function saveRule(event: FormEvent<HTMLFormElement>) {
@@ -122,7 +145,7 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
       setKeyword('');
       setRuleResponse('');
       setRuleEnabled(true);
-    }, 'Keyword reply saved. Telegram delivery is not activated yet.');
+    }, config?.bot.status === 'active' ? 'Keyword reply saved and live.' : 'Keyword reply saved. Activate the bot when ready.');
   }
 
   async function simulate(event: FormEvent<HTMLFormElement>) {
@@ -143,17 +166,41 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
     }
   }
 
+  const active = config?.bot.status === 'active';
+  const hasResponse = !!config && (
+    !!config.bot.welcome_message.trim() ||
+    config.commands.some(item => !!item.response_text.trim()) ||
+    config.rules.some(item => item.enabled && !!item.response_text.trim())
+  );
+
   return <section className="builder" aria-label="Bot editor">
     <header className="builder-header">
       <div>
         <span className="eyebrow">BOT BUILDER</span>
         <h2>@{config?.bot.username ?? 'Your bot'}</h2>
-        <p>Configure your bot safely. Activation and message delivery will follow after webhook testing.</p>
+        <p>{active ? 'Your saved replies are live in private Telegram chats.' :
+          'Configure a reply, then activate your bot when you are ready.'}</p>
       </div>
-      <span className="pill">Configuration only</span>
+      <span className="pill">{active ? 'Live on Telegram' : 'Configuration only'}</span>
     </header>
     {notice && <p className="notice" role="status">{notice}</p>}
     {!config ? null : <>
+      <div className="builder-section">
+        <h3>Telegram delivery</h3>
+        {!deliveryEnabled ? <p>Bot activation is being prepared for the two test accounts.</p> :
+          active ? <>
+            <p>Your configured replies are being delivered in private chats. Pause to stop new replies.</p>
+            <button type="button" className="secondary" disabled={busy}
+              onClick={() => void changeDelivery('deactivate')}>{busy ? 'Working...' : 'Pause bot'}</button>
+          </> : <>
+            <p>{hasResponse ? 'Your bot has a saved reply and can be activated.' :
+              'Save a welcome message, command, or enabled keyword reply before activation.'}</p>
+            <button type="button" disabled={busy || !hasResponse}
+              onClick={() => void changeDelivery('activate')}>{busy ? 'Working...' : 'Activate bot'}</button>
+            {cleanupPending && <button type="button" className="secondary" disabled={busy}
+              onClick={() => void changeDelivery('deactivate')}>Retry webhook cleanup</button>}
+          </>}
+      </div>
       <form className="builder-section" onSubmit={event => void saveWelcome(event)}>
         <h3>Welcome message</h3>
         <p>Text to send when someone starts your bot.</p>
@@ -181,7 +228,7 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
 
       <div className="builder-section">
         <h3>Bot commands</h3>
-        <p>Save a response to a command such as /help. Commands are stored, not yet delivered on Telegram.</p>
+        <p>Save a response to a command such as /help.</p>
         {config.commands.map(item => <div className="config-row" key={item.id}>
           <div><strong>/{item.command}</strong><small>{item.response_text}</small></div>
           <div className="inline-actions">
@@ -215,7 +262,7 @@ export default function BotEditor({ botId, apiUrl }: { botId: string; apiUrl: st
 
       <div className="builder-section">
         <h3>Keyword replies</h3>
-        <p>Save an automatic reply to a matching keyword. Delivery remains inactive until the bot runtime is tested.</p>
+        <p>Save an automatic reply to a matching keyword.</p>
         {config.rules.map(item => <div className="config-row" key={item.id}>
           <div><strong>{item.keyword}</strong><small>{item.response_text}</small>
             <small>{item.enabled ? 'Enabled' : 'Paused'}</small></div>
