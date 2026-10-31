@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { getSupabase } from '../../lib/supabase';
+import { getSupabase, getBaseApiUrl, getPublicBaseConfig } from '../../lib/supabase';
 import BotEditor from './bot-editor';
 
 type Bot = { id: string; username: string; display_name: string; status: string };
@@ -14,13 +14,18 @@ export default function DashboardPage() {
   const [token, setToken] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [connectMessage, setConnectMessage] = useState('');
-  const apiUrl = process.env.NEXT_PUBLIC_BASE_API_URL;
+  const [apiUrl, setApiUrl] = useState<string | null>(null);
+  const [botConnectEnabled, setBotConnectEnabled] = useState(false);
 
   useEffect(() => {
     let active = true;
     async function load() {
       try {
-        const supabase = getSupabase();
+        const supabase = await getSupabase();
+        const publicConfig = await getPublicBaseConfig();
+        if (!active) return;
+        setApiUrl(getBaseApiUrl());
+        setBotConnectEnabled(publicConfig.botConnectEnabled);
         const { data, error } = await supabase.auth.getUser();
         if (!active) return;
         if (error || !data.user) { setStatus('Please sign in to access your bots.'); return; }
@@ -46,10 +51,10 @@ export default function DashboardPage() {
   async function connectBot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setConnectMessage('');
-    if (!apiUrl) { setConnectMessage('The Base API is not deployed yet. This preview cannot connect bots.'); return; }
+    if (!apiUrl || !botConnectEnabled) { setConnectMessage('Bot connections are temporarily disabled while staging security tests finish.'); return; }
     setConnecting(true);
     try {
-      const supabase = getSupabase();
+      const supabase = await getSupabase();
       const { data, error } = await supabase.auth.getSession();
       if (error || !data.session?.access_token) throw new Error('Sign in again to continue.');
       const response = await fetch(new URL('/bots/connect', apiUrl), {
@@ -76,7 +81,8 @@ export default function DashboardPage() {
   }
 
   async function signOut() {
-    await getSupabase().auth.signOut();
+    const supabase = await getSupabase();
+    await supabase.auth.signOut();
     window.location.href = '/login';
   }
 
@@ -94,13 +100,13 @@ export default function DashboardPage() {
       <section className="builder-section">
         <h2>Connect a Telegram bot</h2>
         <p>Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">BotFather</a>, then connect it here. Bot tokens are secrets; only paste one into this secure form, never in chat or GitHub.</p>
-        {!apiUrl && <p className="notice" role="status">Base API deployment is pending. Bot connection and configuration are not yet live in this preview.</p>}
+        {!botConnectEnabled && <p className="notice" role="status">Bot connections are temporarily disabled while we complete security testing. You can still manage previously connected bots.</p>}
         <form onSubmit={event => void connectBot(event)}>
           <label htmlFor="bot-token">BotFather token</label>
           <input id="bot-token" type="password" autoComplete="off" value={token}
-            onChange={event => setToken(event.target.value)} disabled={!apiUrl}
+            onChange={event => setToken(event.target.value)} disabled={!botConnectEnabled || !apiUrl}
             required placeholder="Paste bot token here" />
-          <button type="submit" disabled={connecting || !apiUrl}>{connecting ? 'Connecting...' : 'Connect bot'}</button>
+          <button type="submit" disabled={connecting || !apiUrl || !botConnectEnabled}>{connecting ? 'Connecting...' : 'Connect bot'}</button>
         </form>
         {connectMessage && <p role="status" className="notice">{connectMessage}</p>}
       </section>
