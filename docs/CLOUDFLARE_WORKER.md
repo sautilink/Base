@@ -20,8 +20,8 @@ Use one working directory for installation, build, and Preview: repository root.
 | Root directory | `/` (repository root) |
 | Production branch | `main` — leave unchanged |
 | Preview branch | Include `feat/phase-1-foundation` in preview builds |
-| Build command | `pnpm install --frozen-lockfile && pnpm build:cloudflare` |
-| Preview command | `pnpm deploy:preview:cloudflare` |
+| Build command | `pnpm install --frozen-lockfile && pnpm run build:cloudflare` |
+| Preview command | `pnpm run deploy:preview:cloudflare` |
 | Build variable | `SKIP_DEPENDENCY_INSTALL=1` |
 | Build variable | `PNPM_VERSION=9.15.4` |
 | Build variable | `NODE_VERSION=22` |
@@ -39,11 +39,13 @@ the tool version. The earlier branch had no lockfile, and the supplied logs
 showed Bun installing followed immediately by `npx wrangler preview`, with no
 OpenNext build. Changing Wrangler's version alone cannot fix that sequence.
 
-Verify both commands and all three build variables on
-**Settings → Builds → Previews Base** after saving. Seeing the correct values
-under Production does not verify the feature branch's build configuration.
-Check the repository, branch, commit SHA, and configuration snapshot of the
-specific build when inspecting a failure.
+After editing fields, click **Save** in the bottom **Unsaved changes** bar and
+wait for saving to complete and the bar to disappear. Reload the page, reopen
+**Settings → Builds → Previews Base**, and verify both commands and all three
+build variables. Editor values alone do not prove the settings were saved;
+values under Production do not verify the feature branch's configuration.
+The specific build's configuration snapshot and logs show what it actually
+used. Check its repository, branch, and commit SHA as well.
 
 ## Local verification without uploading
 
@@ -53,9 +55,9 @@ Use pnpm 9.15.4 and Node 22 (the CI versions), from repository root:
 pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm --filter @base/api test
-pnpm build:cloudflare
+pnpm run build:cloudflare
 pnpm --filter @base/web exec wrangler deploy --dry-run
-pnpm deploy:preview:cloudflare --help
+pnpm run deploy:preview:cloudflare --help
 ```
 
 The dry run bundles the Worker without deploying it. `--help` verifies the
@@ -63,7 +65,7 @@ remote Preview command can resolve Wrangler without creating a Preview.
 CI also builds the workspace, builds OpenNext, and bundles the Worker in a dry
 run. None of those checks proves a remote Preview was published.
 
-`pnpm deploy:preview:cloudflare` runs **`wrangler preview`**, which creates or
+`pnpm run deploy:preview:cloudflare` runs **`wrangler preview`**, which creates or
 updates the isolated branch Worker Preview. It requires project Wrangler
 4.135.0 or later; the lockfile fixes the tested version. Run it without `--help`
 only when intentionally publishing the branch Preview, or let Workers Builds
@@ -95,25 +97,25 @@ domain merely to resolve an install/build failure.
 
 ## Verify the next remote build
 
-After saving and rechecking the Preview settings, push a new commit to
-`feat/phase-1-foundation` to trigger a fresh build through the Git integration.
-Confirm that new build's SHA and configuration snapshot match the saved build
-command, Preview command, root, and three build variables before checking:
+After saving and rechecking the Preview settings following a reload, retry the
+feature build or trigger a new one through the Git integration. Confirm that
+the resulting build uses `feat/phase-1-foundation` and the intended commit SHA.
+Check its configuration snapshot for the build command, Preview command, root,
+and three build variables before checking:
 
 1. The explicit pnpm frozen install succeeds; it does not run `bun install`.
-2. `pnpm build:cloudflare` completes and creates `.open-next/worker.js` and assets.
-3. `pnpm deploy:preview:cloudflare` resolves the web workspace's Wrangler and
+2. `pnpm run build:cloudflare` completes and creates `.open-next/worker.js` and assets.
+3. `pnpm run deploy:preview:cloudflare` resolves the web workspace's Wrangler and
    returns a branch Preview URL.
 4. That URL serves the landing page and its CSS. Login/API verification is a
    separate check once Base's public build variables and API are configured.
 
 If the log still shows bare `npx wrangler preview`, the intended Preview
-command was not used. Compare that build's SHA and configuration snapshot with
-the saved **Builds → Previews Base** settings. During this investigation,
-retrying a failed build retained its old configuration snapshot despite the
-new settings being saved. If a retry still shows the old snapshot, use a fresh
-feature-branch push; do not rotate directories, commands, or dependencies on
-that evidence alone.
+command was not used. Treat that build's configuration snapshot and logs as
+authoritative, rather than the editor's current field values. Check the commit
+SHA and repeat the Save, completion, and reload verification above. An old
+snapshot alone does not establish whether Retry or a new push is needed; do
+not rotate directories, commands, or dependencies on that evidence alone.
 
 If Wrangler says the `previews` block is missing while
 `apps/web/wrangler.jsonc` already contains it, check the actual command, working
