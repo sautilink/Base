@@ -14,7 +14,7 @@ services:
     dockerfilePath: apps/api/Dockerfile
     dockerContext: .
     healthCheckPath: /health
-    autoDeployTrigger: off
+    autoDeployTrigger: "off"
     envVars:
       - key: SUPABASE_URL
         value: https://gtzqirfwghijuzhvrnha.supabase.co
