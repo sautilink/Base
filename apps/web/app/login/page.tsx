@@ -11,7 +11,8 @@ export default function LoginPage() {
     setBusy(true);
     setMessage('');
     try {
-      const { error } = await getSupabase().auth.signInWithOtp({
+      const supabase = await getSupabase();
+      const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: { emailRedirectTo: window.location.origin + '/dashboard' }
       });
