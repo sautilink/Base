@@ -1,7 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { Pool } from 'pg';
 import { X509Certificate } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { parseBaseDatabaseConnection } from './db-connection';
 
 // Server-only. Use a least-privilege DB role scoped to SautiLink Base tables.
@@ -11,16 +10,10 @@ export function pool(): Pool {
   if (!database) {
     // Never accept a URL for a different Supabase project or an admin role.
     const connection = parseBaseDatabaseConnection(process.env.DATABASE_URL);
-    // The Render Docker image contains the public CA fetched over HTTPS from
-    // Supabase at build time. Explicit environment override supports rotation.
-    let ca = process.env.SUPABASE_DB_CA_CERT;
-    if (!ca) {
-      try {
-        ca = readFileSync('/app/certs/supabase-prod-ca-2021.crt', 'utf8');
-      } catch {
-        throw new Error('Supabase Database CA certificate has not been configured');
-      }
-    }
+    // The official public CA is downloaded from this project's Supabase
+    // Dashboard SSL Configuration and stored in the Render environment.
+    const ca = process.env.SUPABASE_DB_CA_CERT;
+    if (!ca) throw new Error('Supabase Database CA certificate has not been configured');
     if (!ca.includes('-----BEGIN CERTIFICATE-----') || !ca.includes('-----END CERTIFICATE-----')) {
       throw new Error('Supabase Database CA certificate is malformed');
     }
