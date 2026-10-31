@@ -1,0 +1,24 @@
+# SautiLink Base API — isolated, manually deployed STAGING only.
+# Keep PR #1 Draft; do not merge this file to main for deployment testing.
+# This staging service intentionally starts without database credentials, encryption
+# key or Telegram bot tokens. It should only pass /health until reviewed secrets
+# and a least-privilege Base database role are configured in Render Dashboard.
+services:
+  - type: web
+    name: sautilink-base-api-staging
+    runtime: docker
+    repo: https://github.com/sautilink/Base
+    branch: feat/phase-1-foundation
+    plan: free
+    region: frankfurt
+    dockerfilePath: apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: SUPABASE_URL
+        value: https://gtzqirfwghijuzhvrnha.supabase.co
+      - key: WEB_ORIGIN
+        value: https://feat-phase-1-foundation-sautilink-base-web.dr-charles-services.workers.dev
+      - key: MASTER_BOT_ENABLED
+        value: "false"
