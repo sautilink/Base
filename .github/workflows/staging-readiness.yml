@@ -47,16 +47,23 @@ jobs:
             assert.equal(c.supabaseUrl, "https://gtzqirfwghijuzhvrnha.supabase.co");
             assert.ok(c.supabasePublishableKey.startsWith("sb_publishable_"));
             assert.equal(c.botConnectEnabled, false);
-            assert.equal(c.masterBotEnabled, false);
+            assert.equal(typeof c.masterBotEnabled, "boolean");
+            fs.writeFileSync("master-mode.txt", c.masterBotEnabled ? "enabled" : "disabled");
           '
-          echo "Public Base configuration is safe and connect/master bot gates are OFF"
+          echo "Public Base configuration is safe, user-bot connections are OFF"
           status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             --request POST --header 'Content-Type: application/json'             --data '{}' "$endpoint/bots/connect")"
           test "$status" = "503"
           status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             --request POST --header 'Content-Type: application/json'             --data '{}' "$endpoint/telegram/master")"
-          test "$status" = "404"
+          if [ "$(cat master-mode.txt)" = "enabled" ]; then
+            # Active master must still refuse messages without Telegram secret.
+            test "$status" = "401"
+          else
+            # Disabled master must remain undiscoverable.
+            test "$status" = "404"
+          fi
           status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             "$endpoint/bots/00000000-0000-4000-8000-000000000000/config")"
           test "$status" = "401"
-          echo "Blocked unauthenticated bot access, disabled connection and master webhook"
+          echo "Blocked unauthenticated bot access; master webhook enforces its configured safety state"
           curl --silent --show-error --output /dev/null --dump-header cors-headers.txt             --request OPTIONS --header "Origin: $preview"             --header 'Access-Control-Request-Method: PATCH'             --header 'Access-Control-Request-Headers: authorization,content-type'             "$endpoint/bots/00000000-0000-4000-8000-000000000000/welcome"
           grep -iqF "Access-Control-Allow-Origin: $preview" cors-headers.txt
           grep -i 'Access-Control-Allow-Methods:' cors-headers.txt | grep -qi 'PATCH'
