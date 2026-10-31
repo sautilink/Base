@@ -1,6 +1,7 @@
 import { Body, Controller, Headers, HttpException, HttpStatus, Post } from '@nestjs/common';
 import { BOT_TOKEN_PATTERN, encryptBotToken, requireEncryptionKey } from './bot-security';
 import { pool, verifiedUserId } from './auth-db';
+import { enforceBotConnectRateLimit } from './connect-rate-limit';
 
 type ConnectPayload = { token?: unknown };
 type TelegramMe = { ok: boolean; result?: { id: number; is_bot: boolean; username?: string; first_name?: string } };
@@ -14,6 +15,8 @@ export class BotsController {
       throw new HttpException('Invalid bot token format', HttpStatus.BAD_REQUEST);
     }
     const token = body.token;
+    // Consume a durable attempt before calling Telegram to avoid an unbounded getMe oracle.
+    await enforceBotConnectRateLimit(ownerId);
     const key = requireEncryptionKey(process.env.BOT_TOKEN_ENCRYPTION_KEY); // Fail closed before using a sensitive token.
     let response: Response;
     try {
