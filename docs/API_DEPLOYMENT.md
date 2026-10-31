@@ -28,10 +28,13 @@ A successful health check is **not** proof that authentication, database writes,
 - `DATABASE_URL`: private PostgreSQL connection using a reviewed least-privilege server role **in Base**, never the SautiLink App project
 - `BOT_TOKEN_ENCRYPTION_KEY`: 32 cryptographically random bytes encoded in base64; never store it in Git, logs or frontend bundles
 - `WEB_ORIGIN`: exact authenticated frontend origin (for staging, the current branch Preview URL)
-- `MASTER_BOT_ENABLED=false`: keep the master bot disabled until deduplication, retry safety and monitoring are implemented
+- `MASTER_BOT_ENABLED=true`: the **existing** @SautiLinkBaseBot is enabled in staging after user-confirmed private-chat tests (2026-10-31).
+- `MASTER_BOT_REGISTER_WEBHOOK=false`: successful one-time Telegram staging registration has completed; no re-registration on restart.
+- `BOT_CONNECT_ENABLED=false`: ordinary user-bot connections remain disabled pending real two-account security tests.
+- `BOT_CONNECT_IP_HMAC_KEY`: dedicated random 32-byte base64 secret in **Render only**, never in Git or browser, required before enabling user-bot connections.
 - `PORT=3001`: optional hosting port override
 
-`BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` are intentionally unset during development; do not activate the master webhook yet. Do not share tokens or passwords in chat.
+`BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` have been installed privately in Render for the **master** bot only. Never copy, log, expose or re-register them without an explicit reviewed activation. Do not share tokens or passwords in chat.
 
 **Database role caveat:** The protected `base_private` tables have RLS and no public policies. A plain `authenticated` connection cannot write them. Establish an audited narrow server-only access path before attempting real bot connection; do not resolve permission errors by exposing the private schema to browsers.
 
@@ -52,23 +55,33 @@ The official CA download is available through the project's authenticated dashbo
 ## Prepared routes
 
 - `GET /health`: health check
-- `POST /bots/connect`: authenticated and capped at five attempts per account per 15-minute window, checks Telegram BotFather token via getMe, saves encrypted token and inactive bot
+- `POST /bots/connect`: currently **OFF**; when enabled, authenticated and capped at 5 attempts/account and 20 attempts/HMAC-IP per 15 minutes, validates BotFather token via getMe, writes credential-free audit events, commits encrypted token atomically and registers an **inactive** bot. The platform's master bot is blocked.
 - `GET /bots/:botId/config`: owner-scoped config read
 - `PATCH /bots/:botId/welcome`: owner-scoped welcome message editing
 - `POST/PATCH/DELETE /bots/:botId/commands`: owner-scoped command editing (item ID on PATCH/DELETE)
 - `POST/PATCH/DELETE /bots/:botId/rules`: owner-scoped keyword rules (item ID on PATCH/DELETE)
 - `PATCH /bots/:botId/rules/:itemId/toggle`: pause/enable reply rule
 - `POST /bots/:botId/simulate`: **read-only** preview of matching a message; does not contact Telegram
-- `POST /telegram/master`: present but disabled unless `MASTER_BOT_ENABLED=true`
+- `POST /telegram/master`: **enabled in staging** for the verified @SautiLinkBaseBot, requiring the secret Telegram webhook header.
+
+## User-bot connection staging hardening (2026-10-31)
+
+- The dedicated Base database has `base_private.bot_connect_ip_limits` and `base_private.bot_connect_audit`, both with RLS and no browser access. SQL: `database/bot-connect-security.sql`.
+- Only a keyed HMAC-SHA256 digest of the apparent client IP is stored. The raw IP, token, JWT, email and incoming body are **not** stored in these tables.
+- The API trusts exactly one Render ingress proxy hop. Never trust arbitrary `X-Forwarded-For` or `CF-Connecting-IP` headers from callers. Re-evaluate proxy configuration if the ingress topology changes.
+- Server-side `owner_id` is obtained exclusively from verified Supabase Auth. Browser-provided owner IDs are ignored.
+- Quotas are consumed before Telegram verification. The unauthenticated API has no token-verification oracle.
+- Pending privacy cleanup: configure an operator-approved scheduled job before opening this endpoint publicly. Delete expired IP quota rows older than 24 hours and audit entries older than 30 days.
+- This is **not yet** a full customer release. Two real test users must demonstrate isolation, persistence, duplicate detection and rollback before changing `BOT_CONNECT_ENABLED`.
 
 ## Before the API becomes publicly reachable
 
-1. Add network/edge-based IP rate limiting and anti-abuse protection. Per-account database limits alone are not sufficient.
+1. Persistent per-IP application quotas are implemented; add edge/WAF-level IP limits and monitoring before significant public traffic. Per-account and application IP limits do not replace network controls.
 2. Review Postgres least-privilege role and prove server write operations respect tenant ownership with separate real test accounts. Do not reuse SautiLink App credentials.
 3. Test Telegram getMe error handling, duplication, DB rollback, token encryption and deletion with safe test bots only.
 4. Verify Supabase login, RLS isolation, strict CORS and valid TLS from a genuine HTTPS staging frontend.
 5. Add production-safe request logs, exception redaction, key rotation, monitoring, backups and incident response.
-6. Add durable Telegram update ID deduplication and reliable delivery retries **before enabling** the master bot webhook or any connected user bot.
-7. Configure `NEXT_PUBLIC_BASE_API_URL` in the **Base web branch Preview build environment**, not in source code, then rebuild and validate the web dashboard.
+6. Master webhook has at-most-once update-ID deduplication and user-confirmed private-chat delivery. Evaluate reliable outbox delivery before high-volume production rollout or enabling any user-bot webhook.
+7. Base Preview resolves its public browser-safe API config dynamically; do not copy service keys or admin secrets into the web build.
 
 No automatic production deployment occurs from this document. Keep PR #1 Draft until these gates are reviewed.
