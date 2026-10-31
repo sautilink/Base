@@ -7,8 +7,11 @@ production to test this Preview. Do not change SautiLink App infrastructure.
 
 ## Workers Builds settings
 
-Open the existing Worker's **Settings → Build**. These are the intended
-settings; this file does not change or verify the dashboard configuration.
+Open the existing Worker's **Settings → Builds → Previews Base** tab. The
+Builds section has separate **Production** and **Previews Base** tabs; feature
+branch commands and build variables must be saved under **Previews Base**.
+Use the settings below there and leave Production settings unchanged. This
+file documents the intended settings; it does not apply dashboard changes.
 Use one working directory for installation, build, and Preview: repository root.
 
 | Setting | Value |
@@ -36,10 +39,11 @@ the tool version. The earlier branch had no lockfile, and the supplied logs
 showed Bun installing followed immediately by `npx wrangler preview`, with no
 OpenNext build. Changing Wrangler's version alone cannot fix that sequence.
 
-Build and Preview command fields belong to **Settings → Build**. The
-**Previews Base** runtime configuration is not a separate place to save build
-commands. Check the repository, branch, commit SHA, and saved settings when
-inspecting a failed build.
+Verify both commands and all three build variables on
+**Settings → Builds → Previews Base** after saving. Seeing the correct values
+under Production does not verify the feature branch's build configuration.
+Check the repository, branch, commit SHA, and configuration snapshot of the
+specific build when inspecting a failure.
 
 ## Local verification without uploading
 
@@ -73,7 +77,9 @@ No duplicate Worker, route, custom domain, or database is required.
 
 ## Build variables for the web app
 
-The public client settings must be available during the Next.js build:
+For the feature branch, save public client build settings under
+**Settings → Builds → Previews Base**. They must be available during the
+Next.js build:
 
 - `NEXT_PUBLIC_SUPABASE_URL`: `https://gtzqirfwghijuzhvrnha.supabase.co`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Base project's publishable key
@@ -89,8 +95,10 @@ domain merely to resolve an install/build failure.
 
 ## Verify the next remote build
 
-After saving the settings once, start a new Preview build of the latest
-`feat/phase-1-foundation` commit. Confirm its SHA and the following sequence:
+After saving and rechecking the Preview settings, push a new commit to
+`feat/phase-1-foundation` to trigger a fresh build through the Git integration.
+Confirm that new build's SHA and configuration snapshot match the saved build
+command, Preview command, root, and three build variables before checking:
 
 1. The explicit pnpm frozen install succeeds; it does not run `bun install`.
 2. `pnpm build:cloudflare` completes and creates `.open-next/worker.js` and assets.
@@ -100,8 +108,24 @@ After saving the settings once, start a new Preview build of the latest
    separate check once Base's public build variables and API are configured.
 
 If the log still shows bare `npx wrangler preview`, the intended Preview
-command was not used. Compare that build's SHA and actual saved command;
-do not rotate directories or change dependencies again on that evidence alone.
+command was not used. Compare that build's SHA and configuration snapshot with
+the saved **Builds → Previews Base** settings. During this investigation,
+retrying a failed build retained its old configuration snapshot despite the
+new settings being saved. If a retry still shows the old snapshot, use a fresh
+feature-branch push; do not rotate directories, commands, or dependencies on
+that evidence alone.
+
+If Wrangler says the `previews` block is missing while
+`apps/web/wrangler.jsonc` already contains it, check the actual command, working
+directory, and loaded config path. A root command may have missed the web
+workspace's config. Do not add a duplicate root Wrangler file to hide that
+mismatch.
+
+If pnpm reports that no package manifest was found, verify the repository,
+branch, and commit SHA checked out by that build. `main` intentionally contains
+only the README; `package.json` and `apps/web` are on
+`feat/phase-1-foundation`. Select the feature commit for Preview instead of
+deploying or merging `main` to resolve this error.
 
 Official references:
 - [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
