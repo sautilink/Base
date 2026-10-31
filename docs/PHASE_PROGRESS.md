@@ -1,36 +1,22 @@
 # SautiLink Base — implementation status
 
-This is an engineering status record, not a promise that every feature is live.
-Source branch: `feat/phase-1-foundation`; PR #1 remains Draft. Do not merge or deploy `main` without the production release review.
+Source branch: `feat/phase-1-foundation`. PR #1 remains Draft. Keep `main` and the separate SautiLink App infrastructure unchanged until a production review.
 
-## What is implemented in source
+## Verified staging state (2026-10-31)
 
-- **Phase 1: Foundation** — pnpm monorepo, TypeScript/NestJS, Next.js/Inter, dedicated Base Supabase schema with RLS, encrypted-token primitives, Supabase Auth client, GitHub CI, and a working Cloudflare branch Preview from the earlier baseline. The Base API and full end-to-end login have not been verified live.
-- **Phase 2: Master bot (initial implementation)** — `/telegram/master` webhook controller with constant-time secret comparison and private-chat responses for `/start`, `/help`, `/createbot`, `/dashboard`. Off by default using `MASTER_BOT_ENABLED=false`. No Telegram webhook is registered, and no master token is stored in Git.
-- **Phase 3: Bot connect (development)** — `POST /bots/connect` verifies a Supabase access token and Telegram `getMe`, encrypts the supplied BotFather token at rest, and creates an inactive bot in a transaction. It needs distributed rate limiting, scoped PostgreSQL credentials, auditing, token rotation and integration tests before public exposure.
-- **Phase 4: Commands/welcome (editor + API + simulator)** — protected per-owner GET, POST, PATCH and DELETE endpoints; welcome message editing; web editor. The read-only simulation API now tests /start, commands and keyword matching, but does not send Telegram messages.
-- **Phase 5: Telegram Mini App** — not started; signed Telegram initData verification is a hard requirement.
-- **Phase 6: Web dashboard (initial implementation)** — email login screen, owner-only bot list from Supabase RLS, token connection form, command/reply editor, default white/Inter styling. API URL and Supabase publishable key must be present during the Next.js build for live use.
-- **Phase 7: Keyword smart replies (editor + API + simulator)** — keyword create/edit/delete, enable/pause, owner checks and read-only keyword matching simulation. Delivery worker and AI replies are not implemented.
-- **Phase 8: Broadcast/scheduling** — not started; opt-in recipient model, quotas, deduplication and queue are prerequisites.
-- **Phase 9: Analytics/team** — not started; analytics consent and role-based authorization design needed.
-- **Phase 10: Security/release** — GitHub tests, HTTP health smoke test and Cloudflare dry-run checks are in CI; Node 22 API Dockerfile is prepared but not yet deployed or independently container-tested. Dedicated Base private DB rate-limit table caps bot connection checks at five per account per 15 minutes; IP-based throttling is still required. Not ready for production.
+- **Foundation:** the Cloudflare feature Preview and the separate Render API are live. The API's `/health` and `/health/ready` return HTTP 200. A user reported successful email login and session restoration on the Preview.
+- **Master bot:** the existing @SautiLinkBaseBot is enabled on Render staging. Telegram webhook registration passed its identity, destination and database preflight. The user reported **Master Bot PASS** after testing private-chat responses and opening the dashboard. The Base ledger had six `sent` updates and no `unknown` or `processing` updates in the latest 24-hour read. A `sent` ledger entry alone does not prove a visible reply; the user-observed test provides that confirmation.
+- **Deployment:** Render staging was live at `ebd0420` when checked. GitHub CI for that commit passed. `MASTER_BOT_ENABLED=true`, `MASTER_BOT_REGISTER_WEBHOOK=false` and `BOT_CONNECT_ENABLED=false` are the observed staging modes. The master webhook requires its Telegram secret. No production deploy or merge was performed.
 
-## Verification and rollout gates
+## Implemented, with remaining gates
 
-1. Confirm latest GitHub CI typecheck, API tests, Node API health smoke test, web build, OpenNext build and Wrangler dry-run.
-2. Check the new Cloudflare branch Preview after the commit; a prior successful Preview is not proof that newer commits were deployed.
-3. Configure only **Base** public build variables for web authentication; configure Base Supabase Auth Site URL, redirect allowlist, and email delivery controls.
-4. Host the NestJS API separately with scoped DB role, TLS, secret manager, strict allowed origin, payload limit, distributed user/IP rate limiting and logs that never expose bearer headers or bot tokens.
-5. Add automated multi-account authorization tests for commands, reply rules and connect; verify atomic rollback and invalid BotFather token behaviour. Run staged tests against dedicated Base test users before public traffic.
-6. Add Telegram update-id deduplication, handling for failed sends, webhook abuse prevention, monitoring and bounded retry before enabling `MASTER_BOT_ENABLED` or registering a webhook.
-7. Add bot token rotation/revocation, disconnect cleanup and webhook secret verification before activating connected user bots.
-8. Obtain a separate production review before merging PR #1 and switching `base.sautilink.com` to new code.
+| Area | Current state | Next gate |
+| --- | --- | --- |
+| Master bot | `/start`, `/help`, `/createbot`, `/dashboard` work in staging private chat; persistent update-ID deduplication is enabled | Monitor `unknown` and stalled updates; design reliable outbox delivery before high-volume use |
+| User-bot connection | Protected owner and IP quotas, token-free audit, verified Supabase owner binding, BotFather `getMe`, encrypted token storage and inactive registration are implemented | Keep `BOT_CONNECT_ENABLED=false` until two genuine test accounts and a separate test bot prove ownership isolation, rollback and duplicate handling |
+| Commands and keyword replies | Owner-scoped editor/API and read-only simulator exist | Verify with two accounts; actual user-bot Telegram delivery is not enabled |
+| Telegram Mini App | Not implemented | Verify signed Telegram `initData` before exposing account data |
+| Broadcast, scheduling, analytics and team access | Not implemented | Design consent, queues, quotas and permissions |
+| Production | Not released | Review security, monitoring, retention, backups and domain configuration before merging PR #1 |
 
-The Base service is free for users, with fair-use protections and no required paid tier or forced ads. Never share infrastructure credentials in chat, frontend code or GitHub. Do not use SautiLink App's DB or backend.
-
-## Current implementation notes (2026-10-31)
-
-- Private SQL migration: `database/bot-connect-rate-limit.sql` applied to Base project, RLS on, no anon/authenticated schema privileges; foreign key removes quota rows on user deletion.
-- Simulation route: `POST /bots/:botId/simulate` with an authenticated owner, `{ "message": "/start" }` body. Returns `simulated=true`, matching type, matched value, and preview response text. No Telegram token is read or Telegram API called.
-- Staging container guide: `docs/API_DEPLOYMENT.md`. Host for the NestJS API and its environment variables are still pending. Without `NEXT_PUBLIC_BASE_API_URL` the preview dashboard disables connect/configuration features by design.
+The Base platform is free for users, with fair-use protections. Never put BotFather tokens, database credentials, service-role keys, or webhook secrets in chat, GitHub, frontend bundles or public API responses. See `docs/PHASE_2_MASTER_BOT.md` and `docs/API_DEPLOYMENT.md` for the current staging runbooks.
