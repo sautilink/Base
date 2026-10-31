@@ -11,6 +11,13 @@ test('rejects invalid webhook secrets with fail-closed comparison', () => {
   assert.equal(verifyTelegramSecret('short', 'short'), false);
   assert.equal(verifyTelegramSecret('valid_Telegram_webhook_secret_33', secret), false);
 });
+test('handles Unicode secret length without throwing', () => {
+  const secret = 'AaAaAaAaAaAaAaAa';
+  assert.doesNotThrow(() => verifyTelegramSecret('é'.repeat(8), secret));
+  assert.equal(verifyTelegramSecret('é'.repeat(8), secret), false);
+  assert.equal(verifyTelegramSecret('a'.repeat(16), secret), false);
+});
+
 test('responds to help only in private chats', () => {
   const reply = masterReply({ update_id: 1, message: { chat: { id: 123456, type: 'private' }, text: '/help' } });
   assert.ok(reply);
