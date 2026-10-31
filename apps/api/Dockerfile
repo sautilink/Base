@@ -18,10 +18,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
-# Official public Supabase CA certificate. The HTTPS download is verified by
-# Docker's build environment. This is NOT a private secret or DB credential.
-ADD https://supabase.com/prod-ca-2021.crt /app/certs/supabase-prod-ca-2021.crt
-RUN node -e "const {readFileSync}=require('node:fs');const {X509Certificate}=require('node:crypto');const cert=new X509Certificate(readFileSync('/app/certs/supabase-prod-ca-2021.crt'));if(!cert.ca)process.exit(1)"
+# SUPABASE_DB_CA_CERT is provided as the official PEM via Render settings.
 USER node
 EXPOSE 3001
 CMD ["node", "apps/api/dist/main.js"]
