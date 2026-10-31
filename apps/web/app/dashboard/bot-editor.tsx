@@ -226,8 +226,10 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
               'Save a welcome message, command, or enabled keyword reply before activation.'}</p>
             <button type="button" disabled={busy || !hasResponse}
               onClick={() => void changeDelivery('activate')}>{busy ? 'Working...' : 'Activate bot'}</button>
-            {cleanupPending && <button type="button" className="secondary" disabled={busy}
-              onClick={() => void changeDelivery('deactivate')}>Retry webhook cleanup</button>}
+            <button type="button" className="secondary" disabled={busy}
+              onClick={() => void changeDelivery('deactivate')}>
+              {cleanupPending ? 'Retry webhook cleanup' : 'Verify webhook cleanup'}
+            </button>
           </>}
       </div>
       {deliveryEnabled && <section className="builder-section" aria-label="Delivery health">
