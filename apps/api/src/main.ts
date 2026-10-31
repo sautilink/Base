@@ -3,6 +3,7 @@ import { Controller, Get, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { BotsController } from './bots.controller';
+import { BotConfigController } from './bot-config.controller';
 
 @Controller('health')
 class HealthController {
@@ -10,7 +11,7 @@ class HealthController {
   status() { return { status: 'ok', service: 'sautilink-base-api' }; }
 }
 
-@Module({ controllers: [HealthController, BotsController] })
+@Module({ controllers: [HealthController, BotsController, BotConfigController] })
 class AppModule {}
 
 async function bootstrap() {
