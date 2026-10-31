@@ -35,6 +35,20 @@ A successful health check is **not** proof that authentication, database writes,
 
 **Database role caveat:** The protected `base_private` tables have RLS and no public policies. A plain `authenticated` connection cannot write them. Establish an audited narrow server-only access path before attempting real bot connection; do not resolve permission errors by exposing the private schema to browsers.
 
+## TLS certificate for Base Session Pooler
+
+The dedicated Base session pooler is `aws-0-eu-west-1.pooler.supabase.com:5432`.
+TLS identity verification is required; **never** set `rejectUnauthorized=false` or use `sslmode=disable`.
+
+To configure a trusted certificate:
+
+1. In the **SautiLink Base** Supabase dashboard, open **Database Settings → SSL Configuration → Download Certificate**. Download the project's official PEM (often named `prod-ca-2021.crt`).
+2. Keep database passwords out of chat and Git. The certificate itself is public.
+3. Set `SUPABASE_DB_CA_CERT` as a private Render environment variable containing the **entire** certificate PEM, including `-----BEGIN CERTIFICATE-----` and `-----END CERTIFICATE-----`.
+4. Redeploy staging and verify `GET /health/ready` returns HTTP 200. If certificate validation fails, do **not** relax TLS; inspect the certificate/hostname and the sanitized Render diagnostics.
+
+The official CA download is available through the project's authenticated dashboard; do not rely on guessed static certificate URLs. The older `https://supabase.com/prod-ca-2021.crt` URL returned HTTP 404 during the October 31 staging build and must not be used.
+
 ## Prepared routes
 
 - `GET /health`: health check
