@@ -99,6 +99,10 @@ class AppModule {}
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Render's load balancer is the ONE trusted ingress hop. Never trust an
+  // arbitrary X-Forwarded-For chain (which a client can prepend/spoof).
+  // Express req.ip uses the rightmost forwarded address from this one hop.
+  app.set('trust proxy', 1);
   app.useBodyParser('json', { limit: '16kb' });
   const origin = process.env.WEB_ORIGIN;
   if (origin) app.enableCors({ origin, methods: ['GET', 'POST', 'PATCH', 'DELETE'], allowedHeaders: ['Authorization', 'Content-Type'] });
