@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { Pool } from 'pg';
+import { X509Certificate } from 'node:crypto';
 import { parseBaseDatabaseConnection } from './db-connection';
 
 // Server-only. Use a least-privilege DB role scoped to SautiLink Base tables.
@@ -9,6 +10,17 @@ export function pool(): Pool {
   if (!database) {
     // Never accept a URL for a different Supabase project or an admin role.
     const connection = parseBaseDatabaseConnection(process.env.DATABASE_URL);
+    const ca = process.env.SUPABASE_DB_CA_CERT;
+    if (!ca || !ca.includes('-----BEGIN CERTIFICATE-----') || !ca.includes('-----END CERTIFICATE-----')) {
+      throw new Error('Supabase Database CA certificate has not been configured');
+    }
+    let certificate: X509Certificate;
+    try {
+      certificate = new X509Certificate(ca);
+    } catch {
+      throw new Error('Supabase Database CA certificate is invalid');
+    }
+    if (!certificate.ca) throw new Error('Supabase Database trust anchor must be a CA certificate');
     database = new Pool({
       ...connection,
       max: 3,
@@ -16,7 +28,7 @@ export function pool(): Pool {
       idleTimeoutMillis: 15000,
       statement_timeout: 10000,
       query_timeout: 10000,
-      ssl: { rejectUnauthorized: true }
+      ssl: { ca, rejectUnauthorized: true }
     });
   }
   return database;
