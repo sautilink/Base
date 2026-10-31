@@ -1,16 +1,20 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { getSupabase } from '../../lib/supabase';
+import BotEditor from './bot-editor';
 
 type Bot = { id: string; username: string; display_name: string; status: string };
+
 export default function DashboardPage() {
   const [status, setStatus] = useState('Checking your session...');
   const [bots, setBots] = useState<Bot[]>([]);
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [signedIn, setSignedIn] = useState(false);
   const [token, setToken] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [connectMessage, setConnectMessage] = useState('');
+  const apiUrl = process.env.NEXT_PUBLIC_BASE_API_URL;
 
   useEffect(() => {
     let active = true;
@@ -26,7 +30,11 @@ export default function DashboardPage() {
           .eq('owner_id', data.user.id).order('created_at', { ascending: false });
         if (!active) return;
         if (result.error) setStatus('Unable to load bots: ' + result.error.message);
-        else { setBots(result.data ?? []); setStatus(''); }
+        else {
+          setBots(result.data ?? []);
+          setSelectedBotId(result.data?.[0]?.id ?? null);
+          setStatus('');
+        }
       } catch (error) {
         if (active) setStatus(error instanceof Error ? error.message : 'Dashboard unavailable.');
       }
@@ -35,11 +43,10 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, []);
 
-  async function connectBot(event: React.FormEvent<HTMLFormElement>) {
+  async function connectBot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setConnectMessage('');
-    const apiUrl = process.env.NEXT_PUBLIC_BASE_API_URL;
-    if (!apiUrl) { setConnectMessage('Bot connection is not deployed yet.'); return; }
+    if (!apiUrl) { setConnectMessage('The Base API is not deployed yet. This preview cannot connect bots.'); return; }
     setConnecting(true);
     try {
       const supabase = getSupabase();
@@ -50,14 +57,17 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json', authorization: 'Bearer ' + data.session.access_token },
         body: JSON.stringify({ token })
       });
-      const result = await response.json() as { id?: string; message?: string };
+      const result = await response.json().catch(() => ({})) as { id?: string; message?: string | string[] };
       if (!response.ok) throw new Error(typeof result.message === 'string' ? result.message : 'Unable to connect bot.');
       setToken('');
-      setConnectMessage('Bot connected. It is inactive until activation is implemented.');
+      setConnectMessage('Bot added to your account. Telegram message delivery is not active yet.');
       const refreshed = await supabase.from('base_bots')
         .select('id,username,display_name,status')
         .eq('owner_id', data.session.user.id).order('created_at', { ascending: false });
-      if (!refreshed.error) setBots(refreshed.data ?? []);
+      if (!refreshed.error) {
+        setBots(refreshed.data ?? []);
+        if (result.id) setSelectedBotId(result.id);
+      }
     } catch (error) {
       setConnectMessage(error instanceof Error ? error.message : 'Connection failed.');
     } finally {
@@ -69,21 +79,44 @@ export default function DashboardPage() {
     await getSupabase().auth.signOut();
     window.location.href = '/login';
   }
-  return <main><section className="card dashboard-card">
-    <span className="eyebrow">SAUTILINK BASE · DASHBOARD</span>
-    <h1>Your bots.</h1>
-    {status && <p role="status">{status}</p>}
-    {!signedIn && <Link href="/login">Sign in</Link>}
-    {signedIn && <><p>{bots.length} connected bots</p>
-      {bots.map(bot => <div className="bot-row" key={bot.id}><strong>{bot.display_name || bot.username}</strong><span>@{bot.username} · {bot.status}</span></div>)}
-      {bots.length === 0 && !status && <p>No bots connected yet. Bot connection is coming next.</p>}
-      <form onSubmit={event => void connectBot(event)}>
-        <label htmlFor="bot-token">Connect a bot using its BotFather token</label>
-        <input id="bot-token" type="password" autoComplete="off" value={token} onChange={event => setToken(event.target.value)} required placeholder="Bot token" />
-        <button type="submit" disabled={connecting}>{connecting ? 'Connecting...' : 'Connect bot'}</button>
-      </form>
-      {connectMessage && <p role="status">{connectMessage}</p>}
-      <button onClick={() => void signOut()}>Sign out</button>
+
+  return <main className="dashboard-main"><section className="card dashboard-card">
+    <div className="dashboard-topline">
+      <div><span className="eyebrow">SAUTILINK BASE · DASHBOARD</span>
+        <h1>Your bots.</h1>
+        <p>Build smarter Telegram bots. All features are free.</p></div>
+      {signedIn && <button className="secondary" type="button" onClick={() => void signOut()}>Sign out</button>}
+    </div>
+    {status && <p role="status" className="notice">{status}</p>}
+    {!signedIn && <Link href="/login">Sign in to continue</Link>}
+
+    {signedIn && <>
+      <section className="builder-section">
+        <h2>Connect a Telegram bot</h2>
+        <p>Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">BotFather</a>, then connect it here. Bot tokens are secrets; only paste one into this secure form, never in chat or GitHub.</p>
+        {!apiUrl && <p className="notice" role="status">Base API deployment is pending. Bot connection and configuration are not yet live in this preview.</p>}
+        <form onSubmit={event => void connectBot(event)}>
+          <label htmlFor="bot-token">BotFather token</label>
+          <input id="bot-token" type="password" autoComplete="off" value={token}
+            onChange={event => setToken(event.target.value)} disabled={!apiUrl}
+            required placeholder="Paste bot token here" />
+          <button type="submit" disabled={connecting || !apiUrl}>{connecting ? 'Connecting...' : 'Connect bot'}</button>
+        </form>
+        {connectMessage && <p role="status" className="notice">{connectMessage}</p>}
+      </section>
+
+      <section className="builder-section">
+        <h2>Connected bots <span className="bot-count">{bots.length}</span></h2>
+        {bots.length === 0 && <p>No bots connected yet. Create a bot with BotFather to get started.</p>}
+        {bots.map(bot => <button className={'bot-select' + (selectedBotId === bot.id ? ' chosen' : '')}
+          key={bot.id} type="button" onClick={() => setSelectedBotId(bot.id)}>
+          <span><strong>{bot.display_name || bot.username}</strong><small>@{bot.username}</small></span>
+          <span className="pill">{bot.status}</span>
+        </button>)}
+      </section>
+
+      {selectedBotId && apiUrl && <BotEditor key={selectedBotId} botId={selectedBotId} apiUrl={apiUrl} />}
+      <p className="dashboard-footer">Need help getting started? Visit <a href="https://t.me/SautiLinkBaseBot" target="_blank" rel="noreferrer">@SautiLinkBaseBot</a> once the master bot is activated.</p>
     </>}
   </section></main>;
 }
