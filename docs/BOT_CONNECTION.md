@@ -1,4 +1,6 @@
-# Bot connection API (development only)
+# User-bot connection API (staging gate OFF)
+
+The existing @SautiLinkBaseBot is a separate, working master bot on staging. The user-bot route described below remains disabled with `BOT_CONNECT_ENABLED=false`; do not submit the master token to it. Base Auth had one account and no connected user bots at the last audit, so real cross-account behavior has not yet been tested.
 
 `POST /bots/connect` accepts `{ "token": "..." }` and an `Authorization: Bearer <Supabase user access token>` header.
 
@@ -14,11 +16,15 @@
 - `DATABASE_URL`: private server-only PostgreSQL connection string for the **Base** project, with permission to write `public.base_bots` and `base_private.bot_credentials`.
 - `BOT_TOKEN_ENCRYPTION_KEY`: 32 cryptographically random bytes, encoded as base64, stored in hosting secret manager.
 
-### Deployment gates
-- Add per-user and per-IP rate limits and audit logging without recording secrets.
-- Use scoped PostgreSQL service credentials and TLS verification; do not ship superuser connections.
-- Harden origin restrictions and CSRF measures for browser integrations.
+### Implemented safeguards
+- Durable per-account and HMAC-IP quotas run before Telegram verification; a private audit stores outcomes without raw IPs, tokens or messages.
+- The restricted Base PostgreSQL role uses verified TLS, and the API binds `owner_id` to a Supabase-verified user, never a browser-supplied field.
+- Startup fails before accepting requests if the opt-in is enabled without the dedicated Base public configuration, token-encryption key or IP-HMAC key. `/health/ready` checks the required database privileges when the opt-in is enabled.
+- Browser origin is restricted to the reviewed Base Preview; the endpoint is disabled on staging while its release gates remain open.
+
+### Remaining release gates
+- Test with two genuine Base accounts and a separate test bot. Verify owner isolation in the browser and API, duplicate bot rejection, invalid token, Telegram outage and database rollback.
+- Add edge-level throttling and operator-approved retention cleanup for private quota/audit rows.
 - Implement bot token rotation, disconnection/revocation and lifecycle cleanup.
-- Enforce max payload size and production monitoring.
-- Run integration tests for duplicate bot, invalid token, invalid user, Telegram outage, DB rollback, tenant isolation and encryption decryption.
+- Complete production monitoring and review the proxy topology before public use.
 - No webhooks or bot activation are performed by this endpoint.
