@@ -7,11 +7,19 @@ production to test this Preview. Do not change SautiLink App infrastructure.
 
 ## Workers Builds settings
 
-Open the existing Worker's **Settings → Builds → Previews Base** tab. The
-Builds section has separate **Production** and **Previews Base** tabs; feature
-branch commands and build variables must be saved under **Previews Base**.
-Use the settings below there and leave Production settings unchanged. This
-file documents the intended settings; it does not apply dashboard changes.
+There are three separate scopes:
+
+- **Production**: leave its settings and `main` unchanged.
+- **Previews Base** under **Settings → Builds**: defaults copied when a new
+  branch Preview is created. Set the values below here for future Previews.
+- **Existing branch Preview**: use the top breadcrumb's **Production** selector
+  to select **feat/phase-1-foundation**, then open **Settings → Builds**. Set the
+  same commands, root, and build variables on this Preview itself. Its URL
+  contains `/production/previews/feat-phase-1-foundation/settings`.
+
+Changing Previews Base alone does not update an existing Preview's copy. A new
+push to the same branch does not recreate that Preview or reset its settings.
+This file documents the intended settings; it does not apply dashboard changes.
 Use one working directory for installation, build, and Preview: repository root.
 
 | Setting | Value |
@@ -39,13 +47,25 @@ the tool version. The earlier branch had no lockfile, and the supplied logs
 showed Bun installing followed immediately by `npx wrangler preview`, with no
 OpenNext build. Changing Wrangler's version alone cannot fix that sequence.
 
-After editing fields, click **Save** in the bottom **Unsaved changes** bar and
-wait for saving to complete and the bar to disappear. Reload the page, reopen
-**Settings → Builds → Previews Base**, and verify both commands and all three
-build variables. Editor values alone do not prove the settings were saved;
-values under Production do not verify the feature branch's configuration.
-The specific build's configuration snapshot and logs show what it actually
-used. Check its repository, branch, and commit SHA as well.
+After editing fields in each relevant scope, click **Save** in the bottom
+**Unsaved changes** bar and wait for saving to complete and the bar to
+disappear. Reload the page and verify both commands, root, and all three build
+variables with **feat/phase-1-foundation** still selected. Verify Previews Base
+separately for future branches. Editor values or Production/Base values alone
+do not verify the existing feature Preview's configuration. The specific
+build's configuration snapshot and logs show what it actually used. Check its
+repository, branch, and commit SHA as well.
+
+## Confirmed configuration mismatch
+
+The existing `feat/phase-1-foundation` Preview had an empty build command,
+`npx wrangler preview` as its Preview command, and no build variables while
+Previews Base showed the intended values. Both retries and a new feature push
+used the existing Preview's old settings. This explains the missing OpenNext
+step and root-level Wrangler command. Cloudflare documents that Base build
+settings are copied at Preview creation; existing Previews have their own
+settings. Edit this branch Preview directly rather than deleting it, resetting
+it, or creating a duplicate Worker.
 
 ## Local verification without uploading
 
@@ -79,9 +99,10 @@ No duplicate Worker, route, custom domain, or database is required.
 
 ## Build variables for the web app
 
-For the feature branch, save public client build settings under
-**Settings → Builds → Previews Base**. They must be available during the
-Next.js build:
+For this existing feature branch, select **feat/phase-1-foundation** in the top
+selector and save public client settings under **Settings → Builds**. Add them
+to **Previews Base** separately if future Previews need them. They must be
+available during the Next.js build:
 
 - `NEXT_PUBLIC_SUPABASE_URL`: `https://gtzqirfwghijuzhvrnha.supabase.co`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Base project's publishable key
@@ -97,9 +118,10 @@ domain merely to resolve an install/build failure.
 
 ## Verify the next remote build
 
-After saving and rechecking the Preview settings following a reload, retry the
-feature build or trigger a new one through the Git integration. Confirm that
-the resulting build uses `feat/phase-1-foundation` and the intended commit SHA.
+After saving and rechecking this existing branch Preview's settings following
+a reload, retry its feature build or trigger a new one through the Git
+integration. Confirm that the resulting build uses
+`feat/phase-1-foundation` and the intended commit SHA.
 Check its configuration snapshot for the build command, Preview command, root,
 and three build variables before checking:
 
@@ -113,9 +135,10 @@ and three build variables before checking:
 If the log still shows bare `npx wrangler preview`, the intended Preview
 command was not used. Treat that build's configuration snapshot and logs as
 authoritative, rather than the editor's current field values. Check the commit
-SHA and repeat the Save, completion, and reload verification above. An old
-snapshot alone does not establish whether Retry or a new push is needed; do
-not rotate directories, commands, or dependencies on that evidence alone.
+SHA and the selected existing Preview's own **Settings → Builds**. Verify the
+saved values after a reload; changing Base defaults or pushing again alone
+does not repair an existing Preview's settings. Do not rotate directories,
+commands, or dependencies on that evidence alone.
 
 If Wrangler says the `previews` block is missing while
 `apps/web/wrangler.jsonc` already contains it, check the actual command, working
@@ -131,6 +154,7 @@ deploying or merging `main` to resolve this error.
 
 Official references:
 - [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
+- [Builds API: Base defaults and existing Preview settings](https://developers.cloudflare.com/workers/ci-cd/builds/api-reference/)
 - [Build image, installer selection, and install override](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/)
 - [Worker Previews configuration](https://developers.cloudflare.com/workers/previews/configuration/)
 - [OpenNext CLI: build, local preview, upload, deploy](https://opennext.js.org/cloudflare/cli)
