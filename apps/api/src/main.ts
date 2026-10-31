@@ -34,6 +34,12 @@ class HealthController {
         ledger_update_status: boolean;
         ledger_forbidden_read_status: boolean;
         browser_forbidden_read_id: boolean;
+        ip_quota_read: boolean;
+        ip_quota_write: boolean;
+        audit_insert: boolean;
+        audit_update: boolean;
+        browser_forbidden_ip_quota: boolean;
+        browser_forbidden_audit: boolean;
       }>(`select
         current_user = 'base_api_login' as role_ok,
         pg_has_role(current_user, 'base_api_runtime', 'USAGE') as inherited,
@@ -45,12 +51,21 @@ class HealthController {
         has_column_privilege(current_user, 'base_private.master_update_ledger', 'status', 'INSERT') as ledger_insert_status,
         has_column_privilege(current_user, 'base_private.master_update_ledger', 'status', 'UPDATE') as ledger_update_status,
         has_column_privilege(current_user, 'base_private.master_update_ledger', 'status', 'SELECT') as ledger_forbidden_read_status,
-        has_column_privilege('authenticated', 'base_private.master_update_ledger', 'update_id', 'SELECT') as browser_forbidden_read_id`);
+        has_column_privilege('authenticated', 'base_private.master_update_ledger', 'update_id', 'SELECT') as browser_forbidden_read_id,
+        has_table_privilege(current_user, 'base_private.bot_connect_ip_limits', 'SELECT') as ip_quota_read,
+        has_table_privilege(current_user, 'base_private.bot_connect_ip_limits', 'INSERT') and
+          has_table_privilege(current_user, 'base_private.bot_connect_ip_limits', 'UPDATE') as ip_quota_write,
+        has_table_privilege(current_user, 'base_private.bot_connect_audit', 'INSERT') as audit_insert,
+        has_table_privilege(current_user, 'base_private.bot_connect_audit', 'UPDATE') as audit_update,
+        has_table_privilege('authenticated', 'base_private.bot_connect_ip_limits', 'SELECT') as browser_forbidden_ip_quota,
+        has_table_privilege('authenticated', 'base_private.bot_connect_audit', 'SELECT') as browser_forbidden_audit`);
       const state = result.rows[0];
       phase = 'permissions';
       if (!state || !state.role_ok || !state.inherited || !state.bots_access || !state.secret_write || state.secret_read ||
         !state.ledger_read_id || !state.ledger_insert_id || !state.ledger_insert_status ||
-        !state.ledger_update_status || state.ledger_forbidden_read_status || state.browser_forbidden_read_id) {
+        !state.ledger_update_status || state.ledger_forbidden_read_status || state.browser_forbidden_read_id ||
+        !state.ip_quota_read || !state.ip_quota_write || !state.audit_insert || !state.audit_update ||
+        state.browser_forbidden_ip_quota || state.browser_forbidden_audit) {
         // Only safe booleans; do not log the actual database username or DSN.
         console.warn('Base DB role checks', {
           roleOk: state?.role_ok === true,
@@ -63,7 +78,13 @@ class HealthController {
           ledgerInsertStatus: state?.ledger_insert_status === true,
           ledgerUpdateStatus: state?.ledger_update_status === true,
           ledgerReadStatus: state?.ledger_forbidden_read_status === true,
-          browserCanReadLedger: state?.browser_forbidden_read_id === true
+          browserCanReadLedger: state?.browser_forbidden_read_id === true,
+          ipQuotaRead: state?.ip_quota_read === true,
+          ipQuotaWrite: state?.ip_quota_write === true,
+          botAuditInsert: state?.audit_insert === true,
+          botAuditUpdate: state?.audit_update === true,
+          browserCanReadIpQuota: state?.browser_forbidden_ip_quota === true,
+          browserCanReadAudit: state?.browser_forbidden_audit === true
         });
         throw new Error('Unexpected Base database runtime privileges');
       }
