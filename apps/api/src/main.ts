@@ -16,7 +16,9 @@ class HealthController {
   // Never expose DB credentials, SQL errors or host configuration in HTTP output.
   @Get('ready')
   async ready() {
+    let phase = 'configuration';
     try {
+      phase = 'database-query';
       const result = await pool().query<{
         role_ok: boolean;
         inherited: boolean;
@@ -30,7 +32,16 @@ class HealthController {
         has_column_privilege(current_user, 'base_private.bot_credentials', 'token_ciphertext', 'INSERT') as secret_write,
         has_table_privilege(current_user, 'base_private.bot_credentials', 'SELECT') as secret_read`);
       const state = result.rows[0];
+      phase = 'permissions';
       if (!state || !state.role_ok || !state.inherited || !state.bots_access || !state.secret_write || state.secret_read) {
+        // Only safe booleans; do not log the actual database username or DSN.
+        console.warn('Base DB role checks', {
+          roleOk: state?.role_ok === true,
+          inherited: state?.inherited === true,
+          botsRead: state?.bots_access === true,
+          secretWrite: state?.secret_write === true,
+          secretRead: state?.secret_read === true
+        });
         throw new Error('Unexpected Base database runtime privileges');
       }
       return { status: 'ready', service: 'sautilink-base-api' };
@@ -42,7 +53,7 @@ class HealthController {
         ? maybe.code : 'UNCLASSIFIED';
       const type = typeof maybe?.name === 'string' && /^[a-zA-Z]{1,40}$/.test(maybe.name)
         ? maybe.name : 'unknown';
-      console.warn('Base database readiness failed', { code, type });
+      console.warn('Base database readiness failed', { phase, code, type });
       throw new ServiceUnavailableException('SautiLink Base database not ready');
     }
   }
