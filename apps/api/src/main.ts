@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { BotsController } from './bots.controller';
 import { BotConfigController } from './bot-config.controller';
+import { MasterWebhookController } from './master-webhook.controller';
 
 @Controller('health')
 class HealthController {
@@ -11,7 +12,7 @@ class HealthController {
   status() { return { status: 'ok', service: 'sautilink-base-api' }; }
 }
 
-@Module({ controllers: [HealthController, BotsController, BotConfigController] })
+@Module({ controllers: [HealthController, BotsController, BotConfigController, MasterWebhookController] })
 class AppModule {}
 
 async function bootstrap() {
