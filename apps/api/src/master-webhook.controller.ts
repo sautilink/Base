@@ -26,7 +26,7 @@ export class MasterWebhookController {
     const claimed = await claimMasterUpdate(updateId);
     if (!claimed) return { ok: true, duplicate: true };
 
-    const reply = masterReply(body);
+    const reply = masterReply(body, process.env.BASE_DASHBOARD_URL);
     if (!reply) {
       await completeMasterUpdate(updateId, 'sent');
       return { ok: true };
@@ -37,7 +37,12 @@ export class MasterWebhookController {
       const response = await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: reply.chatId, text: reply.text, link_preview_options: { is_disabled: true } }),
+        body: JSON.stringify({
+          chat_id: reply.chatId,
+          text: reply.text,
+          link_preview_options: { is_disabled: true },
+          ...(reply.buttons?.length ? { reply_markup: { inline_keyboard: reply.buttons.map(button => [button]) } } : {})
+        }),
         signal: AbortSignal.timeout(7000),
         redirect: 'error'
       });
