@@ -27,22 +27,42 @@ class HealthController {
         bots_access: boolean;
         secret_write: boolean;
         secret_read: boolean;
+        ledger_read_id: boolean;
+        ledger_insert_id: boolean;
+        ledger_insert_status: boolean;
+        ledger_update_status: boolean;
+        ledger_forbidden_read_status: boolean;
+        browser_forbidden_read_id: boolean;
       }>(`select
         current_user = 'base_api_login' as role_ok,
         pg_has_role(current_user, 'base_api_runtime', 'USAGE') as inherited,
         has_table_privilege(current_user, 'public.base_bots', 'SELECT') as bots_access,
         has_column_privilege(current_user, 'base_private.bot_credentials', 'token_ciphertext', 'INSERT') as secret_write,
-        has_table_privilege(current_user, 'base_private.bot_credentials', 'SELECT') as secret_read`);
+        has_table_privilege(current_user, 'base_private.bot_credentials', 'SELECT') as secret_read,
+        has_column_privilege(current_user, 'base_private.master_update_ledger', 'update_id', 'SELECT') as ledger_read_id,
+        has_column_privilege(current_user, 'base_private.master_update_ledger', 'update_id', 'INSERT') as ledger_insert_id,
+        has_column_privilege(current_user, 'base_private.master_update_ledger', 'status', 'INSERT') as ledger_insert_status,
+        has_column_privilege(current_user, 'base_private.master_update_ledger', 'status', 'UPDATE') as ledger_update_status,
+        has_column_privilege(current_user, 'base_private.master_update_ledger', 'status', 'SELECT') as ledger_forbidden_read_status,
+        has_column_privilege('authenticated', 'base_private.master_update_ledger', 'update_id', 'SELECT') as browser_forbidden_read_id`);
       const state = result.rows[0];
       phase = 'permissions';
-      if (!state || !state.role_ok || !state.inherited || !state.bots_access || !state.secret_write || state.secret_read) {
+      if (!state || !state.role_ok || !state.inherited || !state.bots_access || !state.secret_write || state.secret_read ||
+        !state.ledger_read_id || !state.ledger_insert_id || !state.ledger_insert_status ||
+        !state.ledger_update_status || state.ledger_forbidden_read_status || state.browser_forbidden_read_id) {
         // Only safe booleans; do not log the actual database username or DSN.
         console.warn('Base DB role checks', {
           roleOk: state?.role_ok === true,
           inherited: state?.inherited === true,
           botsRead: state?.bots_access === true,
           secretWrite: state?.secret_write === true,
-          secretRead: state?.secret_read === true
+          secretRead: state?.secret_read === true,
+          ledgerReadId: state?.ledger_read_id === true,
+          ledgerInsertId: state?.ledger_insert_id === true,
+          ledgerInsertStatus: state?.ledger_insert_status === true,
+          ledgerUpdateStatus: state?.ledger_update_status === true,
+          ledgerReadStatus: state?.ledger_forbidden_read_status === true,
+          browserCanReadLedger: state?.browser_forbidden_read_id === true
         });
         throw new Error('Unexpected Base database runtime privileges');
       }
