@@ -1,35 +1,9 @@
 import { Body, Controller, Headers, HttpException, HttpStatus, Post } from '@nestjs/common';
 import { BOT_TOKEN_PATTERN, encryptBotToken, requireEncryptionKey } from './bot-security';
-import { Pool } from 'pg';
+import { pool, verifiedUserId } from './auth-db';
 
-const TOKEN_PATTERN = /^\d{5,15}:[A-Za-z0-9_-]{30,}$/;
 type ConnectPayload = { token?: unknown };
 type TelegramMe = { ok: boolean; result?: { id: number; is_bot: boolean; username?: string; first_name?: string } };
-
-let database: Pool | undefined;
-function pool(): Pool {
-  if (!database) {
-    if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing');
-    database = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, connectionTimeoutMillis: 5000, ssl: { rejectUnauthorized: true } });
-  }
-  return database;
-}
-async function verifiedUserId(authorization?: string): Promise<string> {
-  if (!authorization?.startsWith('Bearer ')) throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
-  const token = authorization.slice(7).trim();
-  if (!token || token.length > 8192) throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
-  const url = process.env.SUPABASE_URL;
-  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !publishableKey) throw new Error('Supabase Auth not configured');
-  const response = await fetch(new URL('/auth/v1/user', url), {
-    headers: { authorization: `Bearer ${token}`, apikey: publishableKey },
-    signal: AbortSignal.timeout(7000)
-  });
-  if (!response.ok) throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
-  const user = await response.json() as { id?: string };
-  if (!user.id || !/^[0-9a-f-]{36}$/i.test(user.id)) throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
-  return user.id;
-}
 
 @Controller('bots')
 export class BotsController {
