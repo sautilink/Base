@@ -54,7 +54,19 @@ class HealthController {
         ? maybe.code : 'UNCLASSIFIED';
       const type = typeof maybe?.name === 'string' && /^[a-zA-Z]{1,40}$/.test(maybe.name)
         ? maybe.name : 'unknown';
-      console.warn('Base database readiness failed', { phase, code, type });
+      const detail = error instanceof Error ? error.message.toLowerCase() : '';
+      const category = /certificate|self.signed|unable to verify|tls|ssl/.test(detail)
+        ? 'tls'
+        : /password|authenticat|invalid role|login|tenant|user not found/.test(detail)
+          ? 'authentication'
+          : /timeout|timed out|deadline/.test(detail)
+            ? 'timeout'
+            : /connect|terminated|socket|econn/.test(detail)
+              ? 'connection'
+              : /permission|not authorized|privilege/.test(detail)
+                ? 'permissions'
+                : 'other';
+      console.warn('Base database readiness failed', { phase, code, type, category });
       throw new ServiceUnavailableException('SautiLink Base database not ready');
     }
   }
