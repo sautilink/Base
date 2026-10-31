@@ -34,7 +34,15 @@ class HealthController {
         throw new Error('Unexpected Base database runtime privileges');
       }
       return { status: 'ready', service: 'sautilink-base-api' };
-    } catch {
+    } catch (error) {
+      const maybe = error as { code?: unknown; name?: unknown };
+      // Render-only diagnostics: never print the error message, URL, SQL or
+      // parameters because PostgreSQL clients can embed connection details.
+      const code = typeof maybe?.code === 'string' && /^[A-Z0-9_]{1,20}$/.test(maybe.code)
+        ? maybe.code : 'UNCLASSIFIED';
+      const type = typeof maybe?.name === 'string' && /^[a-zA-Z]{1,40}$/.test(maybe.name)
+        ? maybe.name : 'unknown';
+      console.warn('Base database readiness failed', { code, type });
       throw new ServiceUnavailableException('SautiLink Base database not ready');
     }
   }
