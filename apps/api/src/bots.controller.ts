@@ -2,6 +2,7 @@ import { Body, Controller, Headers, HttpException, HttpStatus, Post, Req } from 
 import { BOT_TOKEN_PATTERN, encryptBotToken, requireEncryptionKey } from './bot-security';
 import { pool, verifiedUserId } from './auth-db';
 import { enforceBotConnectRateLimit } from './connect-rate-limit';
+import { botRegistrationValues } from './bot-registration';
 import {
   beginBotConnectAudit, completeBotConnectAudit, enforceBotConnectIpLimit, hashedClientIp
 } from './connect-abuse';
@@ -93,7 +94,11 @@ export class BotsController {
       const created = await client.query<{ id: string }>(
         `insert into public.base_bots (owner_id, telegram_bot_id, username, display_name)
          values ($1,$2,$3,$4) returning id`,
-        [ownerId, data.result.id, data.result.username, data.result.first_name ?? data.result.username]
+        botRegistrationValues(ownerId, {
+          id: data.result.id,
+          username: data.result.username,
+          first_name: data.result.first_name
+        })
       );
       const botId = created.rows[0].id;
       await client.query(
