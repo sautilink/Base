@@ -1,5 +1,5 @@
 import {
-  ConflictException, Controller, ForbiddenException, Headers, HttpException, HttpStatus,
+  ConflictException, Controller, ForbiddenException, Get, Headers, HttpException, HttpStatus,
   NotFoundException, Param, Post
 } from '@nestjs/common';
 import { pool, verifiedUserId } from './auth-db';
@@ -10,6 +10,7 @@ import { ownerBotToken } from './user-bot-credential';
 import { ForeignWebhookError, registerUserBotWebhook, removeUserBotWebhookIfOwned, userBotWebhookSecret } from './user-bot-telegram';
 import { verifyTelegramBotToken } from './telegram-verify';
 import { probeUserBotLedgerWrite } from './user-bot-update-ledger';
+import { ownerDeliveryHealth } from './delivery-health';
 
 type BotRow = { id: string; telegram_bot_id: string; username: string; status: string; welcome_message: string };
 
@@ -35,6 +36,18 @@ async function ownedBot(botId: string, authorization: string | undefined): Promi
 
 @Controller('bots')
 export class UserBotLifecycleController {
+  @Get(':botId/delivery-health')
+  async deliveryHealth(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
+    deliveryEnabled();
+    const { ownerId, bot } = await ownedBot(botId, authorization);
+    try {
+      return await ownerDeliveryHealth(bot.id, ownerId);
+    } catch {
+      // Never send database/ledger details to browsers.
+      throw new HttpException('Delivery health temporarily unavailable', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+  }
+
   @Post(':botId/activate')
   async activate(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
     deliveryEnabled();
