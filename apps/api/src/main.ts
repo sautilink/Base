@@ -7,6 +7,7 @@ import { BotConfigController } from './bot-config.controller';
 import { MasterWebhookController } from './master-webhook.controller';
 import { PublicConfigController } from './public-config.controller';
 import { pool } from './auth-db';
+import { registerMasterWebhook } from './master-registration';
 
 @Controller('health')
 class HealthController {
@@ -102,6 +103,13 @@ async function bootstrap() {
   const origin = process.env.WEB_ORIGIN;
   if (origin) app.enableCors({ origin, methods: ['GET', 'POST', 'PATCH', 'DELETE'], allowedHeaders: ['Authorization', 'Content-Type'] });
   await app.listen(Number(process.env.PORT ?? 3001), '0.0.0.0');
+  // Two independent flags are required for any external Telegram side effect.
+  // Never auto-register a webhook just because code was deployed.
+  if (process.env.MASTER_BOT_REGISTER_WEBHOOK === 'true') {
+    await registerMasterWebhook(process.env);
+    // No token, webhook secret, chat IDs, or update bodies in logs.
+    console.info('SautiLink Base master Telegram webhook registration confirmed');
+  }
 }
 
 void bootstrap();
