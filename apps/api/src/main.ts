@@ -5,6 +5,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { BotsController } from './bots.controller';
 import { BotConfigController } from './bot-config.controller';
 import { MasterWebhookController } from './master-webhook.controller';
+import { PublicConfigController } from './public-config.controller';
 import { pool } from './auth-db';
 
 @Controller('health')
@@ -72,7 +73,7 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [HealthController, BotsController, BotConfigController, MasterWebhookController] })
+@Module({ controllers: [HealthController, PublicConfigController, BotsController, BotConfigController, MasterWebhookController] })
 class AppModule {}
 
 async function bootstrap() {
