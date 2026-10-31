@@ -3,6 +3,7 @@ import { BOT_TOKEN_PATTERN, encryptBotToken, requireEncryptionKey } from './bot-
 import { pool, verifiedUserId } from './auth-db';
 import { enforceBotConnectRateLimit } from './connect-rate-limit';
 import { botRegistrationValues } from './bot-registration';
+import { botConnectTestOwners } from './bot-connect-config';
 import {
   beginBotConnectAudit, completeBotConnectAudit, enforceBotConnectIpLimit, hashedClientIp
 } from './connect-abuse';
@@ -26,15 +27,18 @@ export class BotsController {
     if (process.env.BOT_CONNECT_ENABLED !== 'true') {
       throw new HttpException('Bot connections are not enabled on this staging environment', HttpStatus.SERVICE_UNAVAILABLE);
     }
-    const ownerId = await verifiedUserId(authorization);
-
     // request.ip is computed by Express with exactly one trusted ingress
     // proxy on Render; never use user-controlled forwarding headers directly.
-    // Hash the address, never store it in logs or database plaintext.
+    // Hash the address, never store it in logs or database plaintext. Limit
+    // unauthenticated requests before contacting Supabase Auth.
     const ipDigest = hashedClientIp(request.ip, process.env.BOT_CONNECT_IP_HMAC_KEY);
+    await enforceBotConnectIpLimit(ipDigest);
+    const ownerId = await verifiedUserId(authorization);
+    if (!botConnectTestOwners(process.env).has(ownerId.toLowerCase())) {
+      throw new HttpException('Bot connections are limited to approved test accounts', HttpStatus.FORBIDDEN);
+    }
     // Both quotas are enforced BEFORE Telegram getMe or any bot secret storage.
     await enforceBotConnectRateLimit(ownerId);
-    await enforceBotConnectIpLimit(ipDigest);
 
     const auditId = await beginBotConnectAudit(ownerId, ipDigest);
     const proposedToken = body?.token;

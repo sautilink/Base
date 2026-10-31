@@ -32,11 +32,12 @@ A successful health check is **not** proof that authentication, database writes,
 - `MASTER_BOT_REGISTER_WEBHOOK=false`: successful one-time Telegram staging registration has completed; no re-registration on restart.
 - `BOT_CONNECT_ENABLED=false`: ordinary user-bot connections remain disabled pending real two-account security tests.
 - `BOT_CONNECT_IP_HMAC_KEY`: dedicated random 32-byte base64 secret in **Render only**, never in Git or browser, required before enabling user-bot connections.
+- `BOT_CONNECT_TEST_USER_IDS`: comma-separated UUIDs of exactly two Base test accounts; mandatory whenever `BOT_CONNECT_ENABLED=true` during the restricted test.
 - `PORT=3001`: optional hosting port override
 
 `BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` have been installed privately in Render for the **master** bot only. Never copy, log, expose or re-register them without an explicit reviewed activation. Do not share tokens or passwords in chat.
 
-**Database role caveat:** The protected `base_private` tables have RLS and no public policies. A plain `authenticated` connection cannot write them. Establish an audited narrow server-only access path before attempting real bot connection; do not resolve permission errors by exposing the private schema to browsers.
+**Database role caveat:** The protected `base_private` tables have RLS and no public policies. A plain `authenticated` connection cannot write them. The audited `base_api_runtime` role has the narrow server-only access path; never expose the private schema to browsers.
 
 ## TLS certificate for Base Session Pooler
 
@@ -70,9 +71,9 @@ The official CA download is available through the project's authenticated dashbo
 - Only a keyed HMAC-SHA256 digest of the apparent client IP is stored. The raw IP, token, JWT, email and incoming body are **not** stored in these tables.
 - The API trusts exactly one Render ingress proxy hop. Never trust arbitrary `X-Forwarded-For` or `CF-Connecting-IP` headers from callers. Re-evaluate proxy configuration if the ingress topology changes.
 - Server-side `owner_id` is obtained exclusively from verified Supabase Auth. Browser-provided owner IDs are ignored.
-- Quotas are consumed before Telegram verification. The unauthenticated API has no token-verification oracle.
+- The HMAC-IP quota is consumed before Supabase Auth, and the account quota before Telegram verification. The unauthenticated API has no token-verification oracle.
 - Pending privacy cleanup: configure an operator-approved scheduled job before opening this endpoint publicly. Delete expired IP quota rows older than 24 hours and audit entries older than 30 days.
-- This is **not yet** a full customer release. Two real test users must demonstrate isolation, persistence, duplicate detection and rollback before changing `BOT_CONNECT_ENABLED`.
+- This is **not yet** a full customer release. A rolled-back SQL probe with the two genuine Base user IDs verified RLS isolation for bots, commands, reply rules and menus without persisting fixtures. Real test-bot connection, duplicate detection and rollback remain to be verified before broad access.
 
 ## Before the API becomes publicly reachable
 
