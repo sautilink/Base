@@ -72,3 +72,10 @@ button.danger{background:#fff0f1;color:#ba283c}
 .simulated-output small{display:block;color:#5b7190;font-size:12px}
 .toggle-option{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:650}
 .toggle-option input{width:18px;height:18px;accent-color:#2563eb;padding:0;margin:0;flex-shrink:0}
+
+.delivery-health-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.delivery-health-heading button{padding:9px 12px}
+.delivery-health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;margin:18px 0}
+.delivery-health-grid>div{min-width:0;background:#fff;border:1px solid #e1e8f2;border-radius:16px;padding:16px}
+.delivery-health-grid strong{display:block;font-size:24px;letter-spacing:-.03em;color:#132744}
+.delivery-health-grid small{display:block;margin-top:4px;color:#62748b;font-size:12px}
