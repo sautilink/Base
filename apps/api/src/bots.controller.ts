@@ -87,6 +87,7 @@ export class BotsController {
 
     const tokenCiphertext = encryptBotToken(token, key);
     const client = await pool().connect();
+    let discardConnection = false;
     try {
       await client.query('BEGIN');
       const created = await client.query<{ id: string }>(
@@ -108,7 +109,7 @@ export class BotsController {
       return { id: botId, username: data.result.username, status: 'inactive' };
     } catch (error) {
       try { await client.query('ROLLBACK'); }
-      finally { client.release(); }
+      catch { discardConnection = true; }
       if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
         await completeBotConnectAudit(auditId, 'already_connected', data.result.id);
         throw new HttpException('This Telegram bot is already connected', HttpStatus.CONFLICT);
@@ -116,8 +117,7 @@ export class BotsController {
       await completeBotConnectAudit(auditId, 'storage_error');
       throw new HttpException('Unable to connect bot', HttpStatus.INTERNAL_SERVER_ERROR);
     } finally {
-      // release is idempotent only if called once; successful transaction path only.
-      if (!client.released) client.release();
+      client.release(discardConnection ? new Error('Transaction rollback failed') : undefined);
     }
   }
 }
