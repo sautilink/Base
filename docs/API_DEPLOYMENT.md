@@ -27,7 +27,7 @@ A successful health check is **not** proof that authentication, database writes,
 - `SUPABASE_PUBLISHABLE_KEY`: public Base project publishable key used to validate user sessions
 - `DATABASE_URL`: private PostgreSQL connection using a reviewed least-privilege server role **in Base**, never the SautiLink App project
 - `BOT_TOKEN_ENCRYPTION_KEY`: 32 cryptographically random bytes encoded in base64; never store it in Git, logs or frontend bundles
-- `WEB_ORIGIN`: exact authenticated frontend origin (for staging, the current branch Preview URL)
+- `WEB_ORIGIN`: exact branch Preview origin; the API also permits the reviewed `https://base.sautilink.com` origin
 - `MASTER_BOT_ENABLED=true`: the **existing** @SautiLinkBaseBot is enabled in staging after user-confirmed private-chat tests (2026-10-31).
 - `MASTER_BOT_REGISTER_WEBHOOK=false`: successful one-time Telegram staging registration has completed; no re-registration on restart.
 - `BOT_CONNECT_ENABLED=false`: ordinary user-bot connections remain disabled pending real two-account security tests.
@@ -82,6 +82,6 @@ The official CA download is available through the project's authenticated dashbo
 4. Verify Supabase login, RLS isolation, strict CORS and valid TLS from a genuine HTTPS staging frontend.
 5. Add production-safe request logs, exception redaction, key rotation, monitoring, backups and incident response.
 6. Master webhook has at-most-once update-ID deduplication and user-confirmed private-chat delivery. Evaluate reliable outbox delivery before high-volume production rollout or enabling any user-bot webhook.
-7. Base Preview resolves its public browser-safe API config dynamically; do not copy service keys or admin secrets into the web build.
+7. Base web builds embed only the Base API URL, Supabase project URL, and browser-safe publishable key. Do not copy service keys or admin secrets into the web build.
 
 No automatic production deployment occurs from this document. Keep PR #1 Draft until these gates are reviewed.

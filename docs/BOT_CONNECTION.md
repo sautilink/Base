@@ -20,7 +20,7 @@ The existing @SautiLinkBaseBot is a separate, working master bot on staging. The
 - Durable per-account and HMAC-IP quotas run before Telegram verification; a private audit stores outcomes without raw IPs, tokens or messages.
 - The restricted Base PostgreSQL role uses verified TLS, and the API binds `owner_id` to a Supabase-verified user, never a browser-supplied field.
 - Startup fails before accepting requests if the opt-in is enabled without the dedicated Base public configuration, token-encryption key or IP-HMAC key. `/health/ready` checks the required database privileges when the opt-in is enabled.
-- Browser origin is restricted to the reviewed Base Preview; the endpoint is disabled on staging while its release gates remain open.
+- Browser origins are restricted to the reviewed Base Preview and `https://base.sautilink.com`; the endpoint remains disabled while its release gates are open.
 
 ### Remaining release gates
 - Test with two genuine Base accounts and a separate test bot. Verify owner isolation in the browser and API, duplicate bot rejection, invalid token, Telegram outage and database rollback.
