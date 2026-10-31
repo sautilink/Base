@@ -1,6 +1,6 @@
-# User-bot connection API (staging gate OFF)
+# User-bot connection API (restricted test mode)
 
-The existing @SautiLinkBaseBot is a separate, working master bot on staging. The user-bot route remains disabled until the restricted test rollout; do not submit the master token to it. Base Auth has two signed-in accounts and no connected user bots. A rolled-back SQL test showed that each account could read only its own bot, command, reply rule and menu fixture. Real BotFather connection and cross-account API behavior still need testing.
+The existing @SautiLinkBaseBot is a separate, working master bot on staging. The user-bot route is enabled only for two named Base test accounts; do not submit the master token to it. Base Auth has two signed-in accounts and no connected user bots. A rolled-back SQL test showed that each account could read only its own bot, command, reply rule and menu fixture. A live master-bot token attempt was rejected with a token-free `master_bot` audit outcome; no bot or credential row was created. Real connection with the separate BotFather bot and cross-account API behavior still need testing.
 
 `POST /bots/connect` accepts `{ "token": "..." }` and an `Authorization: Bearer <Supabase user access token>` header.
 
@@ -22,7 +22,7 @@ The existing @SautiLinkBaseBot is a separate, working master bot on staging. The
 - Only the two configured test accounts may reach token validation, even while the web app is public.
 - The restricted Base PostgreSQL role uses verified TLS, and the API binds `owner_id` to a Supabase-verified user, never a browser-supplied field.
 - Startup fails before accepting requests if the opt-in is enabled without the dedicated Base public configuration, token-encryption key or IP-HMAC key. `/health/ready` checks the required database privileges when the opt-in is enabled.
-- Browser origins are restricted to the reviewed Base Preview and `https://base.sautilink.com`; the endpoint remains disabled while its release gates are open.
+- Browser origins are restricted to the reviewed Base Preview and `https://base.sautilink.com`; only the two configured test accounts can connect bots while release gates remain open.
 
 ### Remaining release gates
 - Use the separate test bot to verify owner isolation in the browser and API, duplicate bot rejection, invalid token, Telegram outage and database rollback. The two-account database RLS probe passed and left no rows.

@@ -30,7 +30,7 @@ A successful health check is **not** proof that authentication, database writes,
 - `WEB_ORIGIN`: exact branch Preview origin; the API also permits the reviewed `https://base.sautilink.com` origin
 - `MASTER_BOT_ENABLED=true`: the **existing** @SautiLinkBaseBot is enabled in staging after user-confirmed private-chat tests (2026-10-31).
 - `MASTER_BOT_REGISTER_WEBHOOK=false`: successful one-time Telegram staging registration has completed; no re-registration on restart.
-- `BOT_CONNECT_ENABLED=false`: ordinary user-bot connections remain disabled pending real two-account security tests.
+- `BOT_CONNECT_ENABLED=true`: restricted live test mode. Only the two configured Base test accounts may attempt user-bot connection; this is not broad customer access.
 - `BOT_CONNECT_IP_HMAC_KEY`: dedicated random 32-byte base64 secret in **Render only**, never in Git or browser, required before enabling user-bot connections.
 - `BOT_CONNECT_TEST_USER_IDS`: comma-separated UUIDs of exactly two Base test accounts; mandatory whenever `BOT_CONNECT_ENABLED=true` during the restricted test.
 - `PORT=3001`: optional hosting port override
@@ -56,7 +56,7 @@ The official CA download is available through the project's authenticated dashbo
 ## Prepared routes
 
 - `GET /health`: health check
-- `POST /bots/connect`: currently **OFF**; when enabled, authenticated and capped at 5 attempts/account and 20 attempts/HMAC-IP per 15 minutes, validates BotFather token via getMe, writes credential-free audit events, commits encrypted token atomically and registers an **inactive** bot. The platform's master bot is blocked.
+- `POST /bots/connect`: enabled for two approved test accounts, authenticated and capped at 5 attempts/account and 20 attempts/HMAC-IP per 15 minutes. It validates BotFather tokens via getMe, writes credential-free audit events, commits encrypted tokens atomically and registers an **inactive** bot. The platform's master bot is blocked.
 - `GET /bots/:botId/config`: owner-scoped config read
 - `PATCH /bots/:botId/welcome`: owner-scoped welcome message editing
 - `POST/PATCH/DELETE /bots/:botId/commands`: owner-scoped command editing (item ID on PATCH/DELETE)

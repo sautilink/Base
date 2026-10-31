@@ -22,8 +22,8 @@ export class BotsController {
     @Body() body: ConnectPayload,
     @Req() request: { ip?: string }
   ) {
-    // This gate stays OFF until isolated two-account tests and readiness gates pass.
-    // In particular, no getMe calls or token processing happen when disabled.
+    // The restricted test gate requires a two-owner allowlist at startup.
+    // No getMe calls or token processing happen when disabled.
     if (process.env.BOT_CONNECT_ENABLED !== 'true') {
       throw new HttpException('Bot connections are not enabled on this staging environment', HttpStatus.SERVICE_UNAVAILABLE);
     }
@@ -49,7 +49,7 @@ export class BotsController {
     const token = proposedToken;
     if (token === process.env.BOT_TOKEN) {
       await completeBotConnectAudit(auditId, 'master_bot');
-      throw new HttpException('This bot is reserved by SautiLink Base', HttpStatus.BAD_REQUEST);
+      throw new HttpException('This is the @SautiLinkBaseBot platform bot. Create a separate test bot with @BotFather and use its token.', HttpStatus.BAD_REQUEST);
     }
     // Fail closed before using a sensitive token.
     const key = requireEncryptionKey(process.env.BOT_TOKEN_ENCRYPTION_KEY);
@@ -87,7 +87,7 @@ export class BotsController {
     }
     if (data.result.username.toLowerCase() === MASTER_BOT_USERNAME) {
       await completeBotConnectAudit(auditId, 'master_bot');
-      throw new HttpException('This bot is reserved by SautiLink Base', HttpStatus.BAD_REQUEST);
+      throw new HttpException('This is the @SautiLinkBaseBot platform bot. Create a separate test bot with @BotFather and use its token.', HttpStatus.BAD_REQUEST);
     }
 
     const tokenCiphertext = encryptBotToken(token, key);

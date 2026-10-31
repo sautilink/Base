@@ -41,7 +41,8 @@ export function getBaseApiUrl(): string | null {
   }
 }
 
-export async function getPublicBaseConfig(): Promise<PublicBaseConfig> {
+export async function getPublicBaseConfig(forceRefresh = false): Promise<PublicBaseConfig> {
+  if (forceRefresh) publicConfig = null;
   if (!publicConfig) {
     publicConfig = (async () => {
       const origin = getBaseApiUrl();

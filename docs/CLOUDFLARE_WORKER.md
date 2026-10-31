@@ -38,8 +38,9 @@ are scoped to their URL origin, so signing in on the Preview does not sign in
 the custom domain. Sign in once at the custom domain and refresh there.
 
 The separate Base API on Render accepts CORS from the configured `WEB_ORIGIN`
-and `https://base.sautilink.com`. Its `BOT_CONNECT_ENABLED` guard remains off
-until the bot connection release gates pass. `BASE_DASHBOARD_URL` on Render
+and `https://base.sautilink.com`. Its `BOT_CONNECT_ENABLED` guard is on for
+two approved test accounts only while the bot connection release gates remain.
+`BASE_DASHBOARD_URL` on Render
 should point to `https://base.sautilink.com/dashboard` after the web Worker is
 verified, so the master bot opens the same origin.
 

@@ -17,6 +17,11 @@ export default function DashboardPage() {
   const [connectMessage, setConnectMessage] = useState('');
   const [apiUrl, setApiUrl] = useState<string | null>(null);
   const [botConnectEnabled, setBotConnectEnabled] = useState(false);
+  const [connectConfigState, setConnectConfigState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -57,10 +62,16 @@ export default function DashboardPage() {
         }
         try {
           const publicConfig = await getPublicBaseConfig();
-          if (active) setBotConnectEnabled(publicConfig.botConnectEnabled);
+          if (active) {
+            setBotConnectEnabled(publicConfig.botConnectEnabled);
+            setConnectConfigState('ready');
+          }
         } catch {
           // Authentication and bot listing stay usable during an API cold start.
-          if (active) setBotConnectEnabled(false);
+          if (active) {
+            setBotConnectEnabled(false);
+            setConnectConfigState('error');
+          }
         }
       } catch (error) {
         if (active) {
@@ -105,6 +116,46 @@ export default function DashboardPage() {
     }
   }
 
+  async function retryConnectionStatus() {
+    setConnectConfigState('loading');
+    try {
+      const config = await getPublicBaseConfig(true);
+      setBotConnectEnabled(config.botConnectEnabled);
+      setConnectConfigState('ready');
+    } catch {
+      setBotConnectEnabled(false);
+      setConnectConfigState('error');
+    }
+  }
+
+  async function savePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordMessage('');
+    if (newPassword.length < 12) {
+      setPasswordMessage('Use at least 12 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('The passwords do not match.');
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      const supabase = await getSupabase();
+      const { data, error: sessionError } = await supabase.auth.getUser();
+      if (sessionError || !data.user) throw new Error('Sign in again before setting a password.');
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordMessage('Password saved. Next time, sign in with your email and password.');
+    } catch (error) {
+      setPasswordMessage(error instanceof Error ? error.message : 'Unable to save password.');
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
   async function signOut() {
     const supabase = await getSupabase();
     await supabase.auth.signOut();
@@ -130,7 +181,13 @@ export default function DashboardPage() {
       <section className="builder-section">
         <h2>Connect a Telegram bot</h2>
         <p>Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">BotFather</a>, then connect it here. Bot tokens are secrets; only paste one into this secure form, never in chat or GitHub.</p>
-        {!botConnectEnabled && <p className="notice" role="status">Bot connections are temporarily disabled while we complete security testing. You can still manage previously connected bots.</p>}
+        {connectConfigState === 'loading' && <p className="notice" role="status">Checking bot connection availability...</p>}
+        {connectConfigState === 'ready' && !botConnectEnabled &&
+          <p className="notice" role="status">Bot connections are temporarily disabled. You can still manage previously connected bots.</p>}
+        {connectConfigState === 'error' && <div className="connection-retry">
+          <p className="notice" role="status">Could not check bot connection availability.</p>
+          <button className="secondary" type="button" onClick={() => void retryConnectionStatus()}>Retry connection check</button>
+        </div>}
         <form onSubmit={event => void connectBot(event)}>
           <label htmlFor="bot-token">BotFather token</label>
           <input id="bot-token" type="password" autoComplete="off" value={token}
@@ -149,6 +206,21 @@ export default function DashboardPage() {
           <span><strong>{bot.display_name || bot.username}</strong><small>@{bot.username}</small></span>
           <span className="pill">{bot.status}</span>
         </button>)}
+      </section>
+
+      <section className="builder-section">
+        <h2>Sign in without an email link</h2>
+        <p>Set a password while you are signed in. Your email address remains your sign-in name; future sign-ins will not need a link.</p>
+        <form onSubmit={event => void savePassword(event)}>
+          <label htmlFor="new-password">New password</label>
+          <input id="new-password" type="password" autoComplete="new-password" minLength={12}
+            value={newPassword} onChange={event => setNewPassword(event.target.value)} required />
+          <label htmlFor="confirm-password">Confirm password</label>
+          <input id="confirm-password" type="password" autoComplete="new-password" minLength={12}
+            value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} required />
+          <button type="submit" disabled={passwordBusy}>{passwordBusy ? 'Saving...' : 'Set password'}</button>
+        </form>
+        {passwordMessage && <p role="status" className="notice">{passwordMessage}</p>}
       </section>
 
       {selectedBotId && apiUrl && <BotEditor key={selectedBotId} botId={selectedBotId} apiUrl={apiUrl} />}
