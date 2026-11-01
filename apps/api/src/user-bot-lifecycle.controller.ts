@@ -1,5 +1,5 @@
 import {
-  ConflictException, Controller, ForbiddenException, Get, Headers, HttpException, HttpStatus,
+  BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Headers, HttpException, HttpStatus,
   NotFoundException, Param, Post
 } from '@nestjs/common';
 import { pool, verifiedUserId } from './auth-db';
@@ -11,6 +11,8 @@ import { ForeignWebhookError, registerUserBotWebhook, removeUserBotWebhookIfOwne
 import { verifyTelegramBotToken } from './telegram-verify';
 import { probeUserBotLedgerWrite } from './user-bot-update-ledger';
 import { ownerDeliveryHealth } from './delivery-health';
+import { BOT_TOKEN_PATTERN } from './bot-security';
+import { replaceOwnerBotCredential, validateReplacementToken } from './bot-token-rotation';
 
 type BotRow = { id: string; telegram_bot_id: string; username: string; status: string; welcome_message: string };
 
@@ -96,6 +98,40 @@ export class UserBotLifecycleController {
       throw new ConflictException('Bot activation state changed; refresh the dashboard');
     }
     return { id: bot.id, status: 'active' };
+  }
+
+  @Post(':botId/rotate-token')
+  async rotateToken(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('botId') botId: string,
+    @Body() body: unknown
+  ) {
+    deliveryEnabled();
+    const { ownerId, bot } = await ownedBot(botId, authorization);
+    if (bot.status !== 'inactive') {
+      throw new ConflictException('Pause this bot before replacing its BotFather token');
+    }
+    const token = body && typeof body === 'object' && !Array.isArray(body)
+      ? (body as { token?: unknown }).token : undefined;
+    if (typeof token !== 'string' || !BOT_TOKEN_PATTERN.test(token)) {
+      throw new BadRequestException('Invalid replacement bot token format');
+    }
+    if (token === process.env.BOT_TOKEN) {
+      throw new BadRequestException('The platform master bot cannot be used as a user bot');
+    }
+    // Reuse the durable owner quota before any Telegram requests. No raw
+    // token, request body or provider URL is ever stored in the audit.
+    await enforceBotConnectRateLimit(ownerId);
+    const verification = await validateReplacementToken(bot.id, bot, token);
+    if (!verification.ok) throw new HttpException(verification.message, verification.status);
+    let rotated: boolean;
+    try { rotated = await replaceOwnerBotCredential(bot.id, ownerId, token); }
+    catch { throw new HttpException('Bot token replacement temporarily unavailable', HttpStatus.SERVICE_UNAVAILABLE); }
+    if (!rotated) {
+      throw new ConflictException('Bot token was not replaced. Confirm the bot remains paused and retry');
+    }
+    // Never echo the token or ciphertext. Rotation does not activate a bot.
+    return { id: bot.id, status: 'inactive', tokenRotated: true };
   }
 
   @Post(':botId/deactivate')
