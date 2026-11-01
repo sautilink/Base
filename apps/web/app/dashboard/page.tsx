@@ -103,7 +103,7 @@ export default function DashboardPage() {
       const result = await response.json().catch(() => ({})) as { id?: string; message?: string | string[] };
       if (!response.ok) throw new Error(typeof result.message === 'string' ? result.message : 'Unable to connect bot.');
       setToken('');
-      setConnectMessage('Bot added to your account. The token field was cleared for safety. Telegram message delivery is not active yet.');
+      setConnectMessage('Bot added to your account. The token field was cleared for safety. Save a reply, then activate the bot if you are an approved tester.');
       const refreshed = await supabase.from('base_bots')
         .select('id,username,display_name,status')
         .eq('owner_id', data.session.user.id).order('created_at', { ascending: false });
