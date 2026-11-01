@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { trustedBaseApiOrigin } from './base-api-origin.mjs';
 
 type PublicBaseConfig = {
   supabaseUrl: string;
@@ -30,16 +31,7 @@ export function getBaseApiUrl(): string | null {
   // This staging fallback is permitted ONLY for the isolated GitHub branch
   // Preview. Production/other domains require an explicit build setting.
   if (window.location.hostname === FEATURE_PREVIEW_HOST) return STAGING_API_ORIGIN;
-  const configured = process.env.NEXT_PUBLIC_BASE_API_URL;
-  if (!configured) return null;
-  // This isolated early-access release has exactly one reviewed API origin.
-  // Reject a syntactically valid but foreign HTTPS origin before the browser
-  // sends a Supabase bearer token there. A future API host must be explicitly
-  // reviewed in source and CORS policy before being trusted.
-  if (configured === STAGING_API_ORIGIN || configured === STAGING_API_ORIGIN + '/') {
-    return STAGING_API_ORIGIN;
-  }
-  return null;
+  return trustedBaseApiOrigin(process.env.NEXT_PUBLIC_BASE_API_URL);
 }
 
 export async function getPublicBaseConfig(forceRefresh = false): Promise<PublicBaseConfig> {
