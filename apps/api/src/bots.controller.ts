@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpException, HttpStatus, Post, Req } from '@nestjs/common';
+import { Body, Controller, Header, Headers, HttpException, HttpStatus, Post, Req } from '@nestjs/common';
 import { BOT_TOKEN_PATTERN, encryptBotToken, requireEncryptionKey } from './bot-security';
 import { pool, verifiedUserId } from './auth-db';
 import { enforceBotConnectRateLimit } from './connect-rate-limit';
@@ -14,6 +14,7 @@ type ConnectPayload = { token?: unknown };
 @Controller('bots')
 export class BotsController {
   @Post('connect')
+  @Header('Cache-Control', 'no-store')
   async connect(
     @Headers('authorization') authorization: string | undefined,
     @Body() body: ConnectPayload,
