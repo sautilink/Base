@@ -18,7 +18,9 @@ enabled keyword reply before activating one from the Base dashboard.
 - `POST /bots/:botId/deactivate` marks the bot inactive before asking Telegram
   to remove the Base webhook. If Telegram is unavailable, Base stops replies
   immediately and reports that webhook cleanup needs a retry. A foreign
-  webhook URL is never deleted.
+  webhook URL is never deleted. Owner-authenticated pause and cleanup remain
+  available when `USER_BOT_DELIVERY_ENABLED=false`, so an emergency delivery
+  shutdown cannot trap an active webhook.
 - `USER_BOT_DELIVERY_ENABLED=true` is independent from master-bot webhook
   registration. Startup requires the restricted connection gate and a
   separate 32-byte `USER_BOT_WEBHOOK_SECRET_KEY` (base64) on Render. The key is

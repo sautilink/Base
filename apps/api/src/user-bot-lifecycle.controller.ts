@@ -165,7 +165,6 @@ export class UserBotLifecycleController {
   @Post(':botId/deactivate')
   @Header('Cache-Control', 'no-store')
   async deactivate(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
-    deliveryEnabled();
     const { ownerId, bot } = await ownedBot(botId, authorization);
     // Stop replies in our webhook before contacting Telegram. If Telegram is
     // unavailable, the endpoint is still safe and cleanup can be retried.

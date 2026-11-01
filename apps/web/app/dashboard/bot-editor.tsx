@@ -269,11 +269,14 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
     {!config ? null : <>
       <div className="builder-section">
         <h3>Telegram delivery</h3>
-        {!deliveryEnabled ? <p>Bot activation is being prepared for the two test accounts.</p> :
-          active ? <>
+        {active ? <>
             <p>Your configured replies are being delivered in private chats. Pause to stop new replies.</p>
             <button type="button" className="secondary" disabled={busy}
               onClick={() => void changeDelivery('deactivate')}>{busy ? 'Working...' : 'Pause bot'}</button>
+          </> : !deliveryEnabled ? <>
+            <p>Bot activation is disabled. If this bot was previously active, you can retry Telegram webhook cleanup.</p>
+            <button type="button" className="secondary" disabled={busy}
+              onClick={() => void changeDelivery('deactivate')}>{busy ? 'Working...' : 'Retry webhook cleanup'}</button>
           </> : <>
             <p>{hasResponse ? 'Your bot has a saved reply and can be activated.' :
               'Save a welcome message, command, or enabled keyword reply before activation.'}</p>
