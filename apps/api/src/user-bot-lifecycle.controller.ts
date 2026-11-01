@@ -11,6 +11,7 @@ import { ForeignWebhookError, registerUserBotWebhook, removeUserBotWebhookIfOwne
 import { verifyTelegramBotToken } from './telegram-verify';
 import { probeUserBotLedgerWrite } from './user-bot-update-ledger';
 import { ownerDeliveryHealth } from './delivery-health';
+import { inspectUserBotWebhook } from './user-bot-webhook-health';
 import { BOT_TOKEN_PATTERN } from './bot-security';
 import { replaceOwnerBotCredential, validateReplacementToken } from './bot-token-rotation';
 
@@ -47,6 +48,21 @@ export class UserBotLifecycleController {
     } catch {
       // Never send database/ledger details to browsers.
       throw new HttpException('Delivery health temporarily unavailable', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+  }
+
+  @Get(':botId/webhook-health')
+  async webhookHealth(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
+    deliveryEnabled();
+    const { ownerId, bot } = await ownedBot(botId, authorization);
+    let token: string;
+    try { token = await ownerBotToken(bot.id, ownerId); }
+    catch { throw new HttpException('Bot credential unavailable', HttpStatus.SERVICE_UNAVAILABLE); }
+    try {
+      return await inspectUserBotWebhook(bot.id, token);
+    } catch {
+      // Never forward Telegram's error message or token-bearing URL.
+      throw new HttpException('Telegram webhook status temporarily unavailable', HttpStatus.BAD_GATEWAY);
     }
   }
 
