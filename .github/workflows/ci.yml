@@ -19,6 +19,7 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: node --test apps/web/lib/base-api-origin.test.mjs
       - run: pnpm --filter @base/api test
       - run: pnpm build
       - name: API health smoke test
