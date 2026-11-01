@@ -188,10 +188,12 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
       void refreshWebhookHealth();
       setNotice('Replacement token saved securely. Bot remains paused. Activate it when you are ready.');
     } catch (error) {
-      // A failed rotation keeps the input locally for correction, never persists
-      // it in browser storage, app logs, analytics or an API error response.
-      setNotice(error instanceof Error ? error.message : 'Unable to replace bot token.');
+      setNotice((error instanceof Error ? error.message : 'Unable to replace bot token.') +
+        ' For security, paste the token again if you retry.');
     } finally {
+      // Never retain sensitive BotFather credentials in the editor after an
+      // attempt, including validation errors or Telegram outages.
+      setReplacementToken('');
       setBusy(false);
     }
   }
