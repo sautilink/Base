@@ -94,3 +94,38 @@ jobs:
           grep -iqF "Access-Control-Allow-Origin: $preview" cors-headers.txt
           grep -i 'Access-Control-Allow-Methods:' cors-headers.txt | grep -qi 'PATCH'
           echo "Trusted Preview CORS preflight accepts authenticated editor requests"
+
+      - name: Verify Base web custom domain and delivery release
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin="https://base.sautilink.com"
+          expected="Base is in early access. Telegram delivery is available only to approved test accounts."
+          # Cloudflare builds asynchronously after a branch push. Wait for the
+          # reviewed public copy to appear, rather than passing against old HTML.
+          deployed=false
+          for attempt in 1 2 3 4 5 6 7 8; do
+            code="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
+              --output home.html --write-out '%{http_code}' "$origin/" || true)"
+            if [ "$code" = "200" ] && grep -qF "$expected" home.html; then
+              deployed=true
+              break
+            fi
+            echo "Cloudflare build not yet verified (attempt $attempt)"
+            sleep 20
+          done
+          test "$deployed" = "true"
+          for path in login dashboard; do
+            status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output page.html --write-out '%{http_code}' "$origin/$path")"
+            echo "Base web /$path HTTP $status"
+            test "$status" = "200"
+            grep -q 'SAUTILINK BASE' page.html
+          done
+          curl --silent --show-error --output /dev/null --dump-header live-cors.txt \
+            --request OPTIONS --header "Origin: $origin" \
+            --header 'Access-Control-Request-Method: GET' \
+            --header 'Access-Control-Request-Headers: authorization' \
+            "https://sautilink-base-api-staging.onrender.com/bots/00000000-0000-4000-8000-000000000000/delivery-health"
+          grep -iqF "Access-Control-Allow-Origin: $origin" live-cors.txt
+          echo "Base custom-domain routes, revised public copy, and delivery-health CORS verified"
