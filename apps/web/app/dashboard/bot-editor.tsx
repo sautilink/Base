@@ -312,6 +312,12 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
           {webhookHealth.ownership === 'other' &&
             <p className="notice">Base will not take over or delete another application's webhook.
               Resolve the external webhook before activating this bot.</p>}
+          {active && webhookHealth.ownership !== 'base' &&
+            <p className="notice" role="alert">This bot is marked active but the expected Base webhook is not confirmed.
+              Pause it and check Telegram configuration before reactivating.</p>}
+          {!active && webhookHealth.ownership === 'base' &&
+            <p className="notice" role="alert">The bot is paused, but Telegram still points to Base.
+              Use Verify webhook cleanup above and refresh the status.</p>}
         </>}
       </section>}
       {deliveryEnabled && <section className="builder-section" aria-label="Delivery health">
