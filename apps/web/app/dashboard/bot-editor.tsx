@@ -12,6 +12,11 @@ type Config = {
 };
 type ErrorResponse = { message?: string | string[] };
 type Simulation = { simulated: true; matchType: 'welcome' | 'command' | 'keyword' | 'none'; matchedValue: string | null; responseText: string | null };
+type WebhookHealth = {
+  ownership: 'base' | 'none' | 'other';
+  pendingUpdates: number | null;
+  lastErrorAt: string | null;
+};
 type DeliveryHealth = {
   sent24h: number; ignored24h: number; unknown7d: number;
   processing7d: number; staleProcessing7d: number;
@@ -45,6 +50,9 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
   const [deliveryHealth, setDeliveryHealth] = useState<DeliveryHealth | null>(null);
   const [healthBusy, setHealthBusy] = useState(false);
   const [healthError, setHealthError] = useState('');
+  const [webhookHealth, setWebhookHealth] = useState<WebhookHealth | null>(null);
+  const [webhookBusy, setWebhookBusy] = useState(false);
+  const [webhookError, setWebhookError] = useState('');
   const [replacementToken, setReplacementToken] = useState('');
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -79,6 +87,21 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
     }
   }
 
+  async function refreshWebhookHealth(): Promise<void> {
+    if (!deliveryEnabled) return;
+    setWebhookBusy(true);
+    setWebhookError('');
+    try {
+      const result = await request<WebhookHealth>('/bots/' + botId + '/webhook-health');
+      setWebhookHealth(result);
+    } catch {
+      setWebhookHealth(null);
+      setWebhookError('Telegram webhook status is unavailable. Bot configuration is unaffected.');
+    } finally {
+      setWebhookBusy(false);
+    }
+  }
+
   async function refresh(): Promise<void> {
     const latest = await request<Config>('/bots/' + botId + '/config');
     setConfig(latest);
@@ -106,7 +129,10 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
   }, [botId, apiUrl]);
 
   useEffect(() => {
-    if (deliveryEnabled) void refreshDeliveryHealth();
+    if (deliveryEnabled) {
+      void refreshDeliveryHealth();
+      void refreshWebhookHealth();
+    }
     // The editor remounts whenever the selected bot changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId, apiUrl, deliveryEnabled]);
@@ -134,6 +160,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
       );
       await refresh();
       void refreshDeliveryHealth();
+      void refreshWebhookHealth();
       onStatusChange(result.status);
       setCleanupPending(result.webhookCleanupPending === true);
       setNotice(action === 'activate' ? 'Bot activated. Saved replies are now live on Telegram.' :
@@ -158,6 +185,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
       });
       setReplacementToken('');
       await refresh();
+      void refreshWebhookHealth();
       setNotice('Replacement token saved securely. Bot remains paused. Activate it when you are ready.');
     } catch (error) {
       // A failed rotation keeps the input locally for correction, never persists
@@ -266,6 +294,26 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
           {busy ? 'Checking token...' : 'Verify and replace token'}
         </button>
       </form>}
+      {deliveryEnabled && <section className="builder-section" aria-label="Telegram webhook diagnostics">
+        <div className="delivery-health-heading">
+          <h3>Telegram webhook</h3>
+          <button type="button" className="secondary" disabled={webhookBusy}
+            onClick={() => void refreshWebhookHealth()}>{webhookBusy ? 'Checking...' : 'Check webhook'}</button>
+        </div>
+        <p>Read-only Telegram status. This check never changes your webhook, bot token or message delivery.</p>
+        {webhookError && <p className="notice" role="status">{webhookError}</p>}
+        {webhookHealth && <>
+          <p role="status"><strong>{webhookHealth.ownership === 'base' ? 'Connected to Base' :
+            webhookHealth.ownership === 'none' ? 'No Telegram webhook configured' :
+              'Another application owns this Telegram webhook'}</strong></p>
+          <p className="notice">Telegram pending updates: {webhookHealth.pendingUpdates ?? 'Unavailable'}.
+            Last reported Telegram webhook error: {webhookHealth.lastErrorAt ?
+              new Date(webhookHealth.lastErrorAt).toLocaleString() : 'None reported'}.</p>
+          {webhookHealth.ownership === 'other' &&
+            <p className="notice">Base will not take over or delete another application's webhook.
+              Resolve the external webhook before activating this bot.</p>}
+        </>}
+      </section>}
       {deliveryEnabled && <section className="builder-section" aria-label="Delivery health">
         <div className="delivery-health-heading">
           <h3>Delivery health</h3>
