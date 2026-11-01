@@ -12,6 +12,7 @@ import { verifyTelegramBotToken } from './telegram-verify';
 import { probeUserBotLedgerWrite } from './user-bot-update-ledger';
 import { ownerDeliveryHealth } from './delivery-health';
 import { inspectUserBotWebhook } from './user-bot-webhook-health';
+import { invalidateWebhookHealth, readWebhookHealthCache, rememberWebhookHealth } from './webhook-health-cache';
 import { BOT_TOKEN_PATTERN } from './bot-security';
 import { replaceOwnerBotCredential, validateReplacementToken } from './bot-token-rotation';
 
@@ -57,11 +58,15 @@ export class UserBotLifecycleController {
   async webhookHealth(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
     deliveryEnabled();
     const { ownerId, bot } = await ownedBot(botId, authorization);
+    const cached = readWebhookHealthCache(bot.id);
+    if (cached) return cached;
     let token: string;
     try { token = await ownerBotToken(bot.id, ownerId); }
     catch { throw new HttpException('Bot credential unavailable', HttpStatus.SERVICE_UNAVAILABLE); }
     try {
-      return await inspectUserBotWebhook(bot.id, token);
+      const health = await inspectUserBotWebhook(bot.id, token);
+      rememberWebhookHealth(bot.id, health);
+      return health;
     } catch {
       // Never forward Telegram's error message or token-bearing URL.
       throw new HttpException('Telegram webhook status temporarily unavailable', HttpStatus.BAD_GATEWAY);
@@ -113,8 +118,10 @@ export class UserBotLifecycleController {
       [bot.id, ownerId]
     );
     if (!changed.rows[0]) {
+      invalidateWebhookHealth(bot.id);
       throw new ConflictException('Bot activation state changed; refresh the dashboard');
     }
+    invalidateWebhookHealth(bot.id);
     return { id: bot.id, status: 'active' };
   }
 
@@ -148,6 +155,7 @@ export class UserBotLifecycleController {
     if (!rotated) {
       throw new ConflictException('Bot token was not replaced. Confirm the bot remains paused and retry');
     }
+    invalidateWebhookHealth(bot.id);
     // Never echo the token or ciphertext. Rotation does not activate a bot.
     return { id: bot.id, status: 'inactive', tokenRotated: true };
   }
@@ -171,6 +179,7 @@ export class UserBotLifecycleController {
     } catch {
       cleanupPending = true;
     }
+    invalidateWebhookHealth(bot.id);
     return { id: bot.id, status: 'inactive', webhookCleanupPending: cleanupPending };
   }
 }
