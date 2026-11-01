@@ -27,6 +27,26 @@ jobs:
             test "$status" = "200" || exit 1
           done
 
+      - name: Verify exact Render release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://sautilink-base-api-staging.onrender.com/health/release"
+          status="$(curl --silent --show-error --max-time 30 --output api-release.json \
+              --write-out '%{http_code}' "$url")"
+          test "$status" = "200"
+          node -e '
+            const assert = require("node:assert/strict");
+            const fs = require("node:fs");
+            const info = JSON.parse(fs.readFileSync("api-release.json", "utf8"));
+            assert.deepEqual(Object.keys(info).sort(), ["revision", "service"]);
+            assert.equal(info.service, "sautilink-base-api");
+            assert.match(info.revision, /^[a-f0-9]{40}$/);
+            assert.equal(info.revision, process.env.GITHUB_SHA,
+              "The Render API has not deployed this exact staging commit");
+          '
+          echo "Render is serving the exact audited staging commit: $GITHUB_SHA"
+
       - name: Verify browser configuration and staging safety gates
         shell: bash
         run: |
