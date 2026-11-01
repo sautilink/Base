@@ -2,6 +2,21 @@
 
 Source branch: `feat/phase-1-foundation`. PR #1 remains Draft. Cloudflare Production serves this branch at `base.sautilink.com` at the owner's request; `main` remains empty and the separate SautiLink App infrastructure is unchanged.
 
+## Phase 5: diagnostics, reliability and private retention — 2026-11-01
+
+- Draft [PR #4](https://github.com/sautilink/Base/pull/4) adds owner-only, read-only Telegram webhook health diagnostics, a dashboard warning when the active database status conflicts with Telegram webhook ownership, and a safe reminder to retry webhook cleanup for paused bots. It does not disclose Telegram URLs, errors, IPs, tokens or message contents.
+- The delivery handler now marks a claimed update as `unknown` if the second status lookup fails but the incident can still be persisted; it **never** automatically replays a possibly accepted Telegram response.
+- Operator-only retention migration `base_operator_terminal_ledger_retention` applied **only to the separate Base Supabase project**, not SautiLink App. The `SECURITY INVOKER` preview/prune functions are not executable by browser roles, `service_role`, `base_api_runtime` or `base_api_login`. No cron/automatic pruning exists.
+- Safe synthetic database test **PASS**: 180-day preview, 1-row batch cap, preservation of `unknown`/`processing`, removal of fixture rows. Post-test Base DB still had **1 active bot, 1 encrypted credential, 5 update-ledger rows**, and 0 fixture bots. No live bot credential was changed or deleted.
+- [CI #140](https://github.com/sautilink/Base/actions/runs/41261265269) **PASS** (typecheck, API tests, builds, Cloudflare dry-run). This phase is not yet declared on the live custom domain until its production Worker revision is confirmed. Latest Supabase security advisor had only the existing leaked-password-protection warning.
+- Manual two-account authenticated HTTP test, Telegram pause/restart and Cloudflare phase-specific custom-domain release remain **pending**. The source of truth for operational procedure is `docs/PHASE_5_OPERATIONS.md`.
+
+## Phase 3/4 deployment checkpoint — 2026-11-01
+
+- [PR #2](https://github.com/sautilink/Base/pull/2) and [PR #3](https://github.com/sautilink/Base/pull/3) were fast-forwarded into `feat/phase-1-foundation` only, not `main`. Telegram delivery health, paused-only encrypted token rotation, and the DB migrations were shipped to the dedicated Base test environment.
+- **Render API Phase 4** was live as `dep-dbj963tg1s2s73f3jbbg` at commit `c12fc2a`; staging readiness #56 and CI #137 passed. Real bot remains active.
+- The exact Phase 4 `base-release` marker was **not** confirmed at `base.sautilink.com` or the Cloudflare branch Preview in the last read-only check. GitHub CI Cloudflare build is not evidence of Worker publication; the production dashboard must be inspected. Do not claim this frontend live without a successful exact-version check.
+
 ## Phase 3: delivery diagnostics (review branch only; 2026-11-01)
 
 - Draft [PR #2](https://github.com/sautilink/Base/pull/2) targets `feat/phase-1-foundation` and contains an owner-only delivery-health API endpoint, a dashboard diagnostic view, a private aggregate function, and tests. CI #127 succeeded; this is **not yet deployed**.
