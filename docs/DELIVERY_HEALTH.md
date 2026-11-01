@@ -1,5 +1,8 @@
 # Delivery Health — owner-scoped, restricted staging
 
+> **Historical rollout note (2026-11-01):** Sections below describe the rollout gates at the time they were drafted. Phase 3/4 server code and SQL have since been deployed to restricted Base staging; API staging readiness #56 succeeded. Phase 5 adds operator-only retention and webhook monitoring. Cloudflare custom-domain publication must be verified separately; see `docs/PHASE_PROGRESS.md` and `docs/PHASE_5_OPERATIONS.md` for current status.
+
+
 SautiLink Base user-bot delivery is **at most once**, not guaranteed exactly once. An ambiguous Telegram send may already have reached the recipient. Never automatically resend an `unknown` update. A process crash after claim may leave `processing`. The new health view is **diagnostic only**, not a recovery or retry queue.
 
 ## What changes
