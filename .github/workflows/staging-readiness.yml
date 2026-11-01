@@ -10,7 +10,7 @@ permissions:
 jobs:
   readiness:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 15
     steps:
       - name: Verify Render staging liveness and database readiness
         shell: bash
@@ -32,20 +32,30 @@ jobs:
         run: |
           set -euo pipefail
           url="https://sautilink-base-api-staging.onrender.com/health/release"
-          status="$(curl --silent --show-error --max-time 30 --output api-release.json \
-              --write-out '%{http_code}' "$url")"
-          test "$status" = "200"
-          node -e '
-            const assert = require("node:assert/strict");
-            const fs = require("node:fs");
-            const info = JSON.parse(fs.readFileSync("api-release.json", "utf8"));
-            assert.deepEqual(Object.keys(info).sort(), ["revision", "service"]);
-            assert.equal(info.service, "sautilink-base-api");
-            assert.match(info.revision, /^[a-f0-9]{40}$/);
-            assert.equal(info.revision, process.env.GITHUB_SHA,
-              "The Render API has not deployed this exact staging commit");
-          '
-          echo "Render is serving the exact audited staging commit: $GITHUB_SHA"
+          # A push starts this job before Render necessarily finishes deploying.
+          # Keep the exact-SHA gate, but give the independent deploy time to catch up.
+          for attempt in {1..20}; do
+            status="$(curl --silent --show-error --max-time 20 --output api-release.json \
+                --write-out '%{http_code}' "$url" || true)"
+            if [ "$status" = "200" ] && node -e '
+              const assert = require("node:assert/strict");
+              const fs = require("node:fs");
+              const info = JSON.parse(fs.readFileSync("api-release.json", "utf8"));
+              assert.deepEqual(Object.keys(info).sort(), ["revision", "service"]);
+              assert.equal(info.service, "sautilink-base-api");
+              assert.match(info.revision, /^[a-f0-9]{40}$/);
+              assert.equal(info.revision, process.env.GITHUB_SHA);
+            ' >/dev/null 2>&1; then
+              echo "Render is serving the exact audited staging commit: $GITHUB_SHA"
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              echo "::error::Render did not serve staging commit $GITHUB_SHA after 20 checks"
+              exit 1
+            fi
+            echo "Waiting for Render to publish staging commit $GITHUB_SHA (attempt $attempt/20)"
+            sleep 15
+          done
 
       - name: Verify browser configuration and staging safety gates
         shell: bash
