@@ -114,6 +114,9 @@ export default function DashboardPage() {
     } catch (error) {
       setConnectMessage(error instanceof Error ? error.message : 'Connection failed.');
     } finally {
+      // BotFather credentials must not remain in React state after any
+      // successful or failed connection attempt.
+      setToken('');
       setConnecting(false);
     }
   }
