@@ -68,7 +68,16 @@ export async function handleUserBotUpdate(
   // claiming the update, so ordinary in-flight work respects a pause.
   // This narrows the race, but does not claim cancellation of an already
   // in-flight Telegram sendMessage request.
-  const latest = await adapter.loadBot(botId);
+  let latest: Bot | null;
+  try { latest = await adapter.loadBot(botId); }
+  catch {
+    // A claimed update cannot safely be retried. A second DB read may fail
+    // after the claim was committed but before a send was attempted. Mark
+    // this as an operational incident instead of leaving a processing row
+    // when the database is still available for a status update.
+    await adapter.complete(botId, updateId, 'unknown');
+    return { ok: true };
+  }
   if (!latest || latest.status !== 'active') {
     await adapter.complete(botId, updateId, 'ignored');
     return { ok: true, inactive: true };
