@@ -29,8 +29,26 @@ jobs:
               grep -q 'SAUTILINK BASE' page.html && has_base=yes || true
               grep -q 'Telegram delivery is available only to approved test accounts' page.html && has_recent_copy=yes || true
               grep -q 'Telegram delivery for connected bots is not active yet' page.html && has_old_copy=yes || true
-              has_phase5=no
-              grep -q 'phase-5-ops-hardening' page.html && has_phase5=yes || true
-              echo "Route /$path HTTP=$status brand=$has_base newCopy=$has_recent_copy oldCopy=$has_old_copy phase5=$has_phase5"
+              has_phase6=no
+              grep -q 'phase-6-reliability-gates' page.html && has_phase6=yes || true
+              echo "Route /$path HTTP=$status brand=$has_base newCopy=$has_recent_copy oldCopy=$has_old_copy phase6=$has_phase6"
             done
           done
+
+      - name: Verify public Render release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://sautilink-base-api-staging.onrender.com/health/release"
+          http="$(curl --silent --show-error --max-time 30 --output release.json \
+            --write-out '%{http_code}' "$endpoint")"
+          test "$http" = "200"
+          node -e '
+            const assert = require("node:assert/strict");
+            const fs = require("node:fs");
+            const info = JSON.parse(fs.readFileSync("release.json", "utf8"));
+            assert.deepEqual(Object.keys(info).sort(), ["revision", "service"]);
+            assert.equal(info.service, "sautilink-base-api");
+            assert.equal(info.revision, "f0b4ce975f7815d3bf5dc6a1ccca9e8958306618");
+          '
+          echo "Confirmed exact Phase 6 Render API commit"
