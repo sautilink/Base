@@ -83,3 +83,29 @@ test('a bot that stays active passes the just-before-send status check', async (
   assert.equal(f.sends.length, 1);
   assert.deepEqual(f.completed, ['sent']);
 });
+
+test('post-claim database lookup failure records an unknown incident without sending', async () => {
+  const f = fixture();
+  let reads = 0;
+  f.adapter.loadBot = async () => {
+    if (++reads === 2) throw new Error('transient database outage after claim');
+    return { id: botId, username: 'SampleSupportBot', status: 'active', welcome_message: 'Welcome!' };
+  };
+  assert.deepEqual(await handleUserBotUpdate(botId, 84, message, f.adapter), { ok: true });
+  assert.deepEqual(f.completed, ['unknown']);
+  assert.equal(f.sends.length, 0);
+  assert.ok(f.claimed.has(84));
+});
+
+test('post-claim incident update failure propagates to operator monitoring, never sends', async () => {
+  const f = fixture();
+  let reads = 0;
+  f.adapter.loadBot = async () => {
+    if (++reads === 2) throw new Error('transient database outage after claim');
+    return { id: botId, username: 'SampleSupportBot', status: 'active', welcome_message: 'Welcome!' };
+  };
+  f.adapter.complete = async () => { throw new Error('database status write unavailable'); };
+  await assert.rejects(handleUserBotUpdate(botId, 85, message, f.adapter), /database status write unavailable/);
+  assert.equal(f.sends.length, 0);
+  assert.ok(f.claimed.has(85));
+});
