@@ -42,17 +42,27 @@ jobs:
             const fs = require("node:fs");
             const c = JSON.parse(fs.readFileSync("client-config.json", "utf8"));
             assert.deepEqual(Object.keys(c).sort(), [
-              "botConnectEnabled", "masterBotEnabled", "supabasePublishableKey", "supabaseUrl"
+              "botConnectEnabled", "masterBotEnabled", "supabasePublishableKey", "supabaseUrl", "userBotDeliveryEnabled"
             ]);
             assert.equal(c.supabaseUrl, "https://gtzqirfwghijuzhvrnha.supabase.co");
             assert.ok(c.supabasePublishableKey.startsWith("sb_publishable_"));
-            assert.equal(c.botConnectEnabled, false);
+            assert.equal(typeof c.botConnectEnabled, "boolean");
             assert.equal(typeof c.masterBotEnabled, "boolean");
+            assert.equal(typeof c.userBotDeliveryEnabled, "boolean");
+            if (c.userBotDeliveryEnabled) assert.equal(c.botConnectEnabled, true);
             fs.writeFileSync("master-mode.txt", c.masterBotEnabled ? "enabled" : "disabled");
+            fs.writeFileSync("connect-mode.txt", c.botConnectEnabled ? "restricted" : "disabled");
+            fs.writeFileSync("delivery-mode.txt", c.userBotDeliveryEnabled ? "enabled" : "disabled");
           '
-          echo "Public Base configuration is safe, user-bot connections are OFF"
+          echo "Public Base configuration keys and restricted feature-gate types verified"
           status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             --request POST --header 'Content-Type: application/json'             --data '{}' "$endpoint/bots/connect")"
-          test "$status" = "503"
+          if [ "$(cat connect-mode.txt)" = "restricted" ]; then
+            # Before token validation, connection requires auth or denies
+            # the unauthenticated IP when its quota is exhausted.
+            test "$status" = "401" || test "$status" = "429"
+          else
+            test "$status" = "503"
+          fi
           status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             --request POST --header 'Content-Type: application/json'             --data '{}' "$endpoint/telegram/master")"
           if [ "$(cat master-mode.txt)" = "enabled" ]; then
             # Active master must still refuse messages without Telegram secret.
@@ -64,6 +74,22 @@ jobs:
           status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             "$endpoint/bots/00000000-0000-4000-8000-000000000000/config")"
           test "$status" = "401"
           echo "Blocked unauthenticated bot access; master webhook enforces its configured safety state"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              "$endpoint/bots/00000000-0000-4000-8000-000000000000/delivery-health")"
+          if [ "$(cat delivery-mode.txt)" = "enabled" ]; then
+            test "$status" = "401"
+          else
+            test "$status" = "503"
+          fi
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --request POST --header 'Content-Type: application/json' --data '{"update_id":1}' \
+              "$endpoint/telegram/bots/00000000-0000-4000-8000-000000000000")"
+          if [ "$(cat delivery-mode.txt)" = "enabled" ]; then
+            test "$status" = "401"
+          else
+            test "$status" = "404"
+          fi
+          echo "Delivery health and Telegram user-bot webhook reject unauthenticated requests"
           curl --silent --show-error --output /dev/null --dump-header cors-headers.txt             --request OPTIONS --header "Origin: $preview"             --header 'Access-Control-Request-Method: PATCH'             --header 'Access-Control-Request-Headers: authorization,content-type'             "$endpoint/bots/00000000-0000-4000-8000-000000000000/welcome"
           grep -iqF "Access-Control-Allow-Origin: $preview" cors-headers.txt
           grep -i 'Access-Control-Allow-Methods:' cors-headers.txt | grep -qi 'PATCH'
