@@ -63,6 +63,16 @@ export async function handleUserBotUpdate(
     await adapter.complete(botId, updateId, 'ignored');
     return { ok: true };
   }
+  // Pause may have happened after the first status read or while the
+  // Telegram update was being prepared. Recheck just before send, after
+  // claiming the update, so ordinary in-flight work respects a pause.
+  // This narrows the race, but does not claim cancellation of an already
+  // in-flight Telegram sendMessage request.
+  const latest = await adapter.loadBot(botId);
+  if (!latest || latest.status !== 'active') {
+    await adapter.complete(botId, updateId, 'ignored');
+    return { ok: true, inactive: true };
+  }
   let delivered = false;
   try {
     await adapter.send(token, message.chatId, responseText);
