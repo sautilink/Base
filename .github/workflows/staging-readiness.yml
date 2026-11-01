@@ -97,7 +97,15 @@ jobs:
           else
             test "$status" = "503"
           fi
-          echo "BotFather rotation rejects unauthenticated requests without touching Telegram"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              "$endpoint/bots/00000000-0000-4000-8000-000000000000/webhook-health")"
+          if [ "$(cat delivery-mode.txt)" = "enabled" ]; then
+            test "$status" = "401"
+          else
+            test "$status" = "503"
+          fi
+          echo "BotFather rotation and webhook diagnostics reject unauthenticated requests"
+
           echo "Delivery health and Telegram user-bot webhook reject unauthenticated requests"
           curl --silent --show-error --output /dev/null --dump-header cors-headers.txt             --request OPTIONS --header "Origin: $preview"             --header 'Access-Control-Request-Method: PATCH'             --header 'Access-Control-Request-Headers: authorization,content-type'             "$endpoint/bots/00000000-0000-4000-8000-000000000000/welcome"
           grep -iqF "Access-Control-Allow-Origin: $preview" cors-headers.txt
