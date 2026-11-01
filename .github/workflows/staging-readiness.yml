@@ -124,6 +124,10 @@ jobs:
             sleep 20
           done
           test "$deployed" = "true"
+          # Verify the *exact* new Cloudflare Worker release, not only the
+          # unchanged copy that also existed on an earlier deployment.
+          grep -q 'base-release' home.html
+          grep -q 'phase-4-token-rotation' home.html
           for path in login dashboard; do
             status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output page.html --write-out '%{http_code}' "$origin/$path")"
