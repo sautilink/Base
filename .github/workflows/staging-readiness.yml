@@ -125,7 +125,7 @@ jobs:
             code="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
               --output home.html --write-out '%{http_code}' "$origin/" || true)"
             if [ "$code" = "200" ] && grep -qF "$expected" home.html && \
-               grep -q 'base-release' home.html && grep -q 'phase-5-ops-hardening' home.html; then
+               grep -q 'base-release' home.html && grep -q 'phase-6-reliability-gates' home.html; then
               deployed=true
               break
             fi
@@ -136,7 +136,7 @@ jobs:
           # Verify the *exact* new Cloudflare Worker release, not only the
           # unchanged copy that also existed on an earlier deployment.
           grep -q 'base-release' home.html
-          grep -q 'phase-5-ops-hardening' home.html
+          grep -q 'phase-6-reliability-gates' home.html
           for path in login dashboard; do
             status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output page.html --write-out '%{http_code}' "$origin/$path")"
