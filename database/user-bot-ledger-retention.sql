@@ -54,7 +54,7 @@ $$;
 -- PostgreSQL defaults grant EXECUTE to PUBLIC; remove it explicitly.
 -- Only a trusted database operator / owner may invoke these.
 revoke all on function base_private.preview_user_bot_ledger_retention(integer)
-  from public, anon, authenticated, base_api_runtime;
+  from public, anon, authenticated, service_role, base_api_runtime, base_api_login;
 revoke all on function base_private.prune_user_bot_terminal_updates(integer,integer)
   from public, anon, authenticated, base_api_runtime;
 comment on function base_private.prune_user_bot_terminal_updates(integer,integer) is
