@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { Controller, Get, Module, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get, Header, Module, ServiceUnavailableException } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { BotsController } from './bots.controller';
@@ -11,11 +11,16 @@ import { UserBotWebhookController } from './user-bot-webhook.controller';
 import { pool } from './auth-db';
 import { registerMasterWebhook } from './master-registration';
 import { assertBotConnectConfigured, assertUserBotDeliveryConfigured } from './bot-connect-config';
+import { baseReleaseInfo } from './release-info';
 
 @Controller('health')
 class HealthController {
   @Get()
   status() { return { status: 'ok', service: 'sautilink-base-api' }; }
+
+  @Get('release')
+  @Header('Cache-Control', 'no-store')
+  release() { return baseReleaseInfo(process.env); }
 
   // Liveness (/health) is deliberately separate from database readiness.
   // Never expose DB credentials, SQL errors or host configuration in HTTP output.
