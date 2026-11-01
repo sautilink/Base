@@ -35,6 +35,22 @@ jobs:
             done
           done
 
+      - name: Check fresh Cloudflare traffic and public release marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          for root in "https://base.sautilink.com" "https://feat-phase-1-foundation-sautilink-base-web.dr-charles-services.workers.dev"; do
+            echo "Checking fresh no-cache Base HTML"
+            for attempt in 1 2 3; do
+              code="$(curl --silent --show-error --max-time 20 \
+                --header 'Cache-Control: no-cache' --header 'Pragma: no-cache' \
+                --output current.html --write-out '%{http_code}' "$root/?base_release_probe=$attempt" || true)"
+              phase6=no
+              grep -qF 'phase-6-reliability-gates' current.html && phase6=yes || true
+              echo "Fresh / HTTP=$code phase6=$phase6"
+            done
+          done
+
       - name: Verify public Render release identity
         shell: bash
         run: |
