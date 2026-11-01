@@ -9,7 +9,7 @@ test('activation and pause remain unavailable until the explicit delivery gate i
   const old = process.env.USER_BOT_DELIVERY_ENABLED;
   try {
     process.env.USER_BOT_DELIVERY_ENABLED = 'false';
-    for (const action of ['activate', 'deactivate', 'deliveryHealth', 'rotateToken'] as const) {
+    for (const action of ['activate', 'deactivate', 'deliveryHealth', 'webhookHealth', 'rotateToken'] as const) {
       await assert.rejects(action === 'rotateToken'
         ? controller.rotateToken(undefined, botId, {})
         : controller[action](undefined, botId), error =>
