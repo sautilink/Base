@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Headers, HttpException, HttpStatus,
+  BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Header, Headers, HttpException, HttpStatus,
   NotFoundException, Param, Post
 } from '@nestjs/common';
 import { pool, verifiedUserId } from './auth-db';
@@ -40,6 +40,7 @@ async function ownedBot(botId: string, authorization: string | undefined): Promi
 @Controller('bots')
 export class UserBotLifecycleController {
   @Get(':botId/delivery-health')
+  @Header('Cache-Control', 'no-store')
   async deliveryHealth(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
     deliveryEnabled();
     const { ownerId, bot } = await ownedBot(botId, authorization);
@@ -52,6 +53,7 @@ export class UserBotLifecycleController {
   }
 
   @Get(':botId/webhook-health')
+  @Header('Cache-Control', 'no-store')
   async webhookHealth(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
     deliveryEnabled();
     const { ownerId, bot } = await ownedBot(botId, authorization);
