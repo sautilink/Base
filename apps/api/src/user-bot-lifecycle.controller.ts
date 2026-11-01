@@ -74,6 +74,7 @@ export class UserBotLifecycleController {
   }
 
   @Post(':botId/activate')
+  @Header('Cache-Control', 'no-store')
   async activate(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
     deliveryEnabled();
     const { ownerId, bot } = await ownedBot(botId, authorization);
@@ -126,6 +127,7 @@ export class UserBotLifecycleController {
   }
 
   @Post(':botId/rotate-token')
+  @Header('Cache-Control', 'no-store')
   async rotateToken(
     @Headers('authorization') authorization: string | undefined,
     @Param('botId') botId: string,
@@ -161,6 +163,7 @@ export class UserBotLifecycleController {
   }
 
   @Post(':botId/deactivate')
+  @Header('Cache-Control', 'no-store')
   async deactivate(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
     deliveryEnabled();
     const { ownerId, bot } = await ownedBot(botId, authorization);
