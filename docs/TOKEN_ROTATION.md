@@ -1,5 +1,8 @@
 # Phase 4 — safe BotFather token rotation (restricted test only)
 
+> **Historical rollout note (2026-11-01):** Sections below describe the rollout gates at the time they were drafted. Phase 3/4 server code and SQL have since been deployed to restricted Base staging; API staging readiness #56 succeeded. Phase 5 adds operator-only retention and webhook monitoring. Cloudflare custom-domain publication must be verified separately; see `docs/PHASE_PROGRESS.md` and `docs/PHASE_5_OPERATIONS.md` for current status.
+
+
 This feature is for a **user-owned Telegram test bot only**, not the SautiLink Base master bot. A replacement token is submitted over HTTPS using the already authenticated Base dashboard. It is handled server-side, encrypted with the existing Base AES-256-GCM key, and never returned to the browser. No raw token is stored in logs, audit tables, URL parameters, browser storage, or GitHub.
 
 ## Safety gates
