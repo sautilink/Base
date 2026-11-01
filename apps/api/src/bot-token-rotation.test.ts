@@ -64,7 +64,7 @@ test('encrypted credential replacement is owner-scoped, and the token never beco
     assert.equal(await replaceOwnerBotCredential(botId, ownerId, token, async (sql, values) => {
       queries++;
       assert.equal(sql.includes(token), false);
-      assert.match(sql, /base_private\\.rotate_owner_bot_credential/);
+      assert.match(sql, /base_private\.rotate_owner_bot_credential/);
       assert.equal(values[0], botId);
       assert.equal(values[1], ownerId);
       assert.ok(Buffer.isBuffer(values[2]));
