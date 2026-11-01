@@ -1,0 +1,34 @@
+name: Inspect SautiLink Base Cloudflare release
+on:
+  push:
+    branches: [diagnostics/cloudflare-release-check]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-readonly-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Check Cloudflare custom-domain response without auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin="https://base.sautilink.com"
+          preview="https://feat-phase-1-foundation-sautilink-base-web.dr-charles-services.workers.dev"
+          for root in "$origin" "$preview"; do
+            echo "Checking Base deployment origin"
+            for path in "" login dashboard; do
+              status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 25 \
+                --output page.html --write-out '%{http_code}' "$root/$path" || true)"
+              has_base=no
+              has_recent_copy=no
+              has_old_copy=no
+              grep -q 'SAUTILINK BASE' page.html && has_base=yes || true
+              grep -q 'Telegram delivery is available only to approved test accounts' page.html && has_recent_copy=yes || true
+              grep -q 'Telegram delivery for connected bots is not active yet' page.html && has_old_copy=yes || true
+              echo "Route /$path HTTP=$status brand=$has_base newCopy=$has_recent_copy oldCopy=$has_old_copy"
+            done
+          done
