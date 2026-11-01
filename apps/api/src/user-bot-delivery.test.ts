@@ -56,3 +56,30 @@ test('retries database failures before claim and never resends after an ambiguou
   assert.deepEqual(await handleUserBotUpdate(botId, 81, message, after.adapter), { ok: true, duplicate: true });
   assert.deepEqual(after.completed, ['unknown']);
 });
+
+
+test('pause detected during update preparation blocks Telegram sends', async () => {
+  const f = fixture();
+  let reads = 0;
+  f.adapter.loadBot = async () => ({
+    id: botId, username: 'SampleSupportBot',
+    status: ++reads === 1 ? 'active' : 'inactive',
+    welcome_message: 'Welcome!'
+  });
+  assert.deepEqual(await handleUserBotUpdate(botId, 82, message, f.adapter), { ok: true, inactive: true });
+  assert.equal(reads, 2);
+  assert.equal(f.sends.length, 0);
+  assert.deepEqual(f.completed, ['ignored']);
+  assert.ok(f.claimed.has(82));
+});
+
+test('a bot that stays active passes the just-before-send status check', async () => {
+  const f = fixture();
+  let reads = 0;
+  const original = f.adapter.loadBot;
+  f.adapter.loadBot = async id => { reads++; return original(id); };
+  assert.deepEqual(await handleUserBotUpdate(botId, 83, message, f.adapter), { ok: true });
+  assert.equal(reads, 2);
+  assert.equal(f.sends.length, 1);
+  assert.deepEqual(f.completed, ['sent']);
+});
