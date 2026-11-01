@@ -3,7 +3,7 @@ export function safeBaseReleaseRevision(value: string | undefined): string | nul
   return value && /^[a-f0-9]{40}$/.test(value) ? value : null;
 }
 
-export function baseReleaseInfo(env: Pick<NodeJS.ProcessEnv, 'RENDER_GIT_COMMIT'>) {
+export function baseReleaseInfo(env: { RENDER_GIT_COMMIT?: string }) {
   return {
     service: 'sautilink-base-api',
     revision: safeBaseReleaseRevision(env.RENDER_GIT_COMMIT)
