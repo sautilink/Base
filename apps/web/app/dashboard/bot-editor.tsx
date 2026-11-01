@@ -45,6 +45,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
   const [deliveryHealth, setDeliveryHealth] = useState<DeliveryHealth | null>(null);
   const [healthBusy, setHealthBusy] = useState(false);
   const [healthError, setHealthError] = useState('');
+  const [replacementToken, setReplacementToken] = useState('');
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const supabase = await getSupabase();
@@ -145,6 +146,28 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
     }
   }
 
+  async function rotateToken(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!replacementToken) return;
+    setBusy(true);
+    setNotice('');
+    try {
+      await request('/bots/' + botId + '/rotate-token', {
+        method: 'POST',
+        body: JSON.stringify({ token: replacementToken })
+      });
+      setReplacementToken('');
+      await refresh();
+      setNotice('Replacement token saved securely. Bot remains paused. Activate it when you are ready.');
+    } catch (error) {
+      // A failed rotation keeps the input locally for correction, never persists
+      // it in browser storage, app logs, analytics or an API error response.
+      setNotice(error instanceof Error ? error.message : 'Unable to replace bot token.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveWelcome(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await mutate(() => request('/bots/' + botId + '/welcome', {
@@ -232,6 +255,17 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
             </button>
           </>}
       </div>
+      {deliveryEnabled && !active && <form className="builder-section" onSubmit={event => void rotateToken(event)}>
+        <h3>Replace BotFather token</h3>
+        <p>Use this only after regenerating this same bot's token in BotFather. The bot must remain paused; its Telegram bot identity is verified before the encrypted credential is replaced. This never activates the bot automatically.</p>
+        <label htmlFor="replacement-token">New BotFather token</label>
+        <input id="replacement-token" type="password" autoComplete="off" spellCheck={false}
+          maxLength={256} value={replacementToken} onChange={event => setReplacementToken(event.target.value)}
+          placeholder="Paste a replacement token for this bot" />
+        <button type="submit" disabled={busy || !replacementToken.trim()}>
+          {busy ? 'Checking token...' : 'Verify and replace token'}
+        </button>
+      </form>}
       {deliveryEnabled && <section className="builder-section" aria-label="Delivery health">
         <div className="delivery-health-heading">
           <h3>Delivery health</h3>
