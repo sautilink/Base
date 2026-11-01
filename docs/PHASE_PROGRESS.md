@@ -2,6 +2,16 @@
 
 Source branch: `feat/phase-1-foundation`. PR #1 remains Draft. Cloudflare Production serves this branch at `base.sautilink.com` at the owner's request; `main` remains empty and the separate SautiLink App infrastructure is unchanged.
 
+## Phase 3: delivery diagnostics (review branch only; 2026-11-01)
+
+- Draft [PR #2](https://github.com/sautilink/Base/pull/2) targets `feat/phase-1-foundation` and contains an owner-only delivery-health API endpoint, a dashboard diagnostic view, a private aggregate function, and tests. CI #127 succeeded; this is **not yet deployed**.
+- Additive Base-only Supabase migration `base_owner_delivery_health_summary` (history version `20261101000417`) **was applied** and verified. Server roles can call the function; browser roles cannot. A different genuine Base user received empty aggregate results for the existing test bot. No account IDs, chat content, tokens or update IDs were exposed.
+- One test bot, one encrypted credential, five ledger records at the migration-time integrity check; no delivery rows or bot configuration were changed by the migration.
+- Live UI/HTTP verification, manual Telegram pause/cleanup test and owner-approved staging deployment remain pending. PR #1, the feature-branch deployment, `main` and the separate SautiLink App have not been changed.
+- Note: the Supabase security advisor still shows its existing `Leaked Password Protection Disabled` Auth warning; it is separate from Phase 3. Full outbox recovery, ledger retention, WAF limits and credential rotation are future work.
+
+See `docs/DELIVERY_HEALTH.md` for staged rollout order.
+
 ## Verified staging state (2026-11-01)
 
 - **Foundation:** `base.sautilink.com` and the separate Render Base API are live. The owner confirmed email login persists after refreshing the custom-domain dashboard.
