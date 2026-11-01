@@ -29,6 +29,8 @@ jobs:
               grep -q 'SAUTILINK BASE' page.html && has_base=yes || true
               grep -q 'Telegram delivery is available only to approved test accounts' page.html && has_recent_copy=yes || true
               grep -q 'Telegram delivery for connected bots is not active yet' page.html && has_old_copy=yes || true
-              echo "Route /$path HTTP=$status brand=$has_base newCopy=$has_recent_copy oldCopy=$has_old_copy"
+              has_phase4=no
+              grep -q 'phase-4-token-rotation' page.html && has_phase4=yes || true
+              echo "Route /$path HTTP=$status brand=$has_base newCopy=$has_recent_copy oldCopy=$has_old_copy phase4=$has_phase4"
             done
           done
