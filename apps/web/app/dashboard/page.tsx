@@ -97,6 +97,7 @@ export default function DashboardPage() {
       if (error || !data.session?.access_token) throw new Error('Sign in again to continue.');
       const response = await fetch(new URL('/bots/connect', apiUrl), {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json', authorization: 'Bearer ' + data.session.access_token },
         body: JSON.stringify({ token })
       });
