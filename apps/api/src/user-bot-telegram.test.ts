@@ -64,7 +64,7 @@ test('registration refuses a foreign webhook and verifies the reviewed destinati
     if (method === 'setWebhook') {
       assert.equal(body.url, userBotWebhookUrl(botId));
       assert.deepEqual(body.allowed_updates, ['message']);
-      assert.equal(body.drop_pending_updates, false);
+      assert.equal(body.drop_pending_updates, true);
       assert.equal(body.max_connections, 1);
       currentUrl = String(body.url);
     } else if (method === 'deleteWebhook') {

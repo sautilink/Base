@@ -72,7 +72,8 @@ export async function registerUserBotWebhook(
   if (previous.url && previous.url !== url) throw new ForeignWebhookError('Bot already uses another Telegram webhook');
   const registered = await userBotTelegramCall(token, 'setWebhook', {
     url, secret_token: secret, allowed_updates: ['message'],
-    max_connections: 1, drop_pending_updates: false
+    // A paused bot must not answer messages queued while its webhook was removed.
+    max_connections: 1, drop_pending_updates: true
   }, fetcher);
   if (registered !== true || (await webhookInfo(token, fetcher)).url !== url) {
     throw new Error('Telegram webhook registration not confirmed');
