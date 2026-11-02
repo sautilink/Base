@@ -5,7 +5,8 @@ Source branch: `feat/phase-1-foundation`. PR #1 remains Draft. Cloudflare Produc
 ## Phase 8: Content Manager and Menu Builder — 2026-11-02
 
 - Added private media uploads, saved text/media content, command bindings, nested menus, HTTPS buttons, Back navigation, interactive preview, and callback/media delivery. Web branding uses the existing SautiLink logo followed by gray Base.
-- The additive migration is applied to Base only. Local typechecks and 87 API tests passed; rolled-back database tests passed owner isolation and tree/content constraints. See `docs/PHASE_8_CONTENT_MENUS.md` for scope and outstanding live acceptance.
+- The additive migration is applied to Base only. Local typechecks and 87 API tests passed; rolled-back database tests passed owner isolation and tree/content constraints. See `docs/PHASE_8_CONTENT_MENUS.md` for scope and live acceptance evidence.
+- Live acceptance passed on `ad0a270` (CI #159, API exact revision/ready, Cloudflare Worker `84f5949e` at 100%). Browser upload, private media preview, command binding and nested preview passed. The user confirmed the real Telegram image/caption and menu/Back navigation worked. Storage RLS also hid the uploaded file from the second account. Demo content and menus remain editable on the approved test bot.
 
 ## Phase 7: Telegram Mini App — 2026-11-02
 
@@ -57,6 +58,7 @@ See `docs/DELIVERY_HEALTH.md` for staged rollout order.
 | User-bot connection | Protected owner and pre-auth IP quotas, two-account allowlist, token-free audit, verified Supabase owner binding, BotFather `getMe`, encrypted token storage and inactive registration are implemented. One real test bot is active; database uniqueness, rollback, second-account duplicate and live invalid-token checks passed. Provider failures passed simulated tests | Monitor real provider failures and complete edge limits, retention, token rotation and disconnection before broader access |
 | Commands and keyword replies | Owner-scoped editor/API and read-only simulator exist. Restricted activation, per-bot signed webhook, private delivery ledger and pause control are implemented. The real test bot replied `pong` to `/ping`; the ledger recorded one sent update | Test live pause and two-account editor isolation; add operational recovery for ambiguous/stalled deliveries before broad access |
 | Telegram Mini App | Inline master-bot launch, signed launch verification, owner editor and second-account empty list passed; separate Base Auth still gates bot data | Complete wider operational review before broad access |
+| Content and menus | Private media library, content commands, nested buttons/links, simulator and real Telegram image/menu delivery passed | Media quota/retention automation and wider operational review before broad access |
 | Broadcast, scheduling, analytics and team access | Not implemented | Design consent, queues, quotas and permissions |
 | Public web | Base web is live on the custom domain, and user-bot connection is limited to the two approved test accounts | Review security, monitoring, retention, backups and bot delivery before a broader release or PR merge |
 

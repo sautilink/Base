@@ -10,11 +10,16 @@
 
 ## Current implementation
 
+- Phase 8 Content Manager and Menu Builder are live: text, private photo/video/audio/document uploads, content command bindings, nested menus/HTTPS buttons, interactive preview and Telegram callback/media delivery. SautiLink logo followed by gray Base appears throughout the web UI.
+
 - Base Auth, owner-scoped bot connection and editing, commands and keyword replies, simulator, activation/pause, encrypted BotFather token storage and token rotation.
 - Private Telegram delivery ledger, owner-only delivery and webhook-health diagnostics, conservative manual retention and at-most-once handling of ambiguous sends. Unknown outcomes are not replayed automatically.
 - @SautiLinkBaseBot offers an inline Telegram Mini App button in private chat. `/miniapp` verifies raw Telegram initData with the Base API before loading the existing dashboard. The user must still have a separate Base Auth session. Telegram identity alone grants no bot access.
 
 ## Verified on 2026-11-02
+
+- **Latest product checkpoint — Phase 8:** `ad0a270`, CI #159 passed 87 API tests/typechecks/builds. Render `dep-dbk03lvlk1mc73af4vmg` reported that exact revision and ready health; Cloudflare build `2c8dda8d` published active Worker `84f5949e` at 100% on `base.sautilink.com`. Private bucket and additive content/menu migration applied only to Base. Rolled-back owner/isolation/tree tests and actual media Storage RLS checks passed. Browser upload/preview and command/menu setup passed; the owner confirmed receiving the image/caption and using nested menus and Back in Telegram.
+- Modern Base storage secret is configured server-side on the separate Base API with owner approval. No credential belongs in source control or browser responses. One editable demo image, `/base_demo`, and the two `Jaribio la Base → Picha ya Base` menu items remain on the test bot. See `docs/PHASE_8_CONTENT_MENUS.md` for types, bounds and architecture.
 
 - GitHub CI #154 passed for `f2e225c`; CI #155 passed for the Mini App timeout/retry fix at `16ff45c`.
 - Cloudflare build `54c86a87` published `16ff45c` as active Worker version `a1fcdf60`, Ready at 100% traffic. Direct browser access to `https://base.sautilink.com/miniapp` displays the Telegram launch guidance and no dashboard.
