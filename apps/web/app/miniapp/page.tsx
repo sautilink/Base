@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Script from 'next/script';
 import DashboardPage from '../dashboard/page';
@@ -12,6 +12,13 @@ type Gate = 'checking' | 'signed-in' | 'signed-out' | 'missing' | 'invalid' | 'e
 export default function MiniAppPage() {
   const [gate, setGate] = useState<Gate>('checking');
   const started = useRef(false);
+
+  useEffect(() => {
+    const fallback = window.setTimeout(() => {
+      if (!started.current) setGate('missing');
+    }, 6000);
+    return () => window.clearTimeout(fallback);
+  }, []);
 
   async function verify() {
     if (started.current) return;
