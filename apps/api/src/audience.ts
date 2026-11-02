@@ -8,6 +8,7 @@ export type AudienceObservation = {
   kind: 'message' | 'menu';
   action: AudienceAction | null;
   actionAt: number | null;
+  destination?: Buffer | null;
 };
 
 /** Bot-scoped pseudonym: never persist chat IDs, usernames, names or message text. */

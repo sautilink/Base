@@ -7,6 +7,7 @@ import {loadBuilder} from './builder-db';
 import {menuReply,type RichReply} from './content-config';
 import {privateMenuCallback,sendRichReply} from './content-delivery';
 import { audienceCommand, audienceMessageTime, audienceVisitorKey, privateAudienceSender, type AudienceObservation } from './audience';
+import { encryptDestination } from './broadcast-config';
 
 type Bot = { id: string; username: string; status: string; welcome_message: string };
 type Rules = Pick<BotReplyConfiguration, 'commands' | 'rules' | 'contents' | 'menus'>;
@@ -17,6 +18,7 @@ export type DeliveryAdapter = {
   activeToken: (botId: string) => Promise<string>;
   claim: (botId: string, updateId: number, observation?: AudienceObservation) => Promise<boolean>;
   visitorKey?: (botId: string, chatId: number) => string;
+  destination?: (botId: string, visitorKey: string, chatId: number) => Buffer;
   complete: (botId: string, updateId: number, status: 'sent' | 'ignored' | 'unknown') => Promise<void>;
   send: (token: string, chatId: number, text: string, reply?:RichReply) => Promise<void>;
   answer?: (token:string,queryId:string)=>Promise<void>;
@@ -43,6 +45,7 @@ const liveAdapter: DeliveryAdapter = {
   activeToken: activeBotToken,
   claim: claimUserBotUpdate,
   visitorKey: (botId, chatId) => audienceVisitorKey(botId, chatId, process.env.USER_BOT_WEBHOOK_SECRET_KEY),
+  destination: (botId, visitorKey, chatId) => encryptDestination(botId,visitorKey,chatId,process.env.BOT_TOKEN_ENCRYPTION_KEY),
   complete: completeUserBotUpdate,
   send:sendRichReply,
   async answer(token,queryId){await userBotTelegramCall(token,'answerCallbackQuery',{callback_query_id:queryId});}
@@ -76,6 +79,9 @@ export async function handleUserBotUpdate(
     action: actionAt !== null ? action : null,
     actionAt
   } : undefined;
+  if (observation?.action === 'subscribe' && adapter.destination && sender) {
+    observation.destination = adapter.destination(botId,observation.visitorKey,sender);
+  }
   const claimed = await adapter.claim(botId, updateId, observation);
   if (!claimed) return { ok: true, duplicate: true };
   if(callback&&token&&adapter.answer){try{await adapter.answer(token,callback.queryId);}catch{/* Callback acknowledgement cannot authorize or replay a send. */}}

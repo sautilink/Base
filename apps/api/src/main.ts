@@ -11,6 +11,7 @@ import { UserBotWebhookController } from './user-bot-webhook.controller';
 import { MiniAppController } from './miniapp.controller';
 import { ContentController } from './content.controller';
 import { AudienceController } from './audience.controller';
+import { BroadcastController, BroadcastDispatchController } from './broadcast.controller';
 import { pool } from './auth-db';
 import { registerMasterWebhook } from './master-registration';
 import { assertBotConnectConfigured, assertUserBotDeliveryConfigured } from './bot-connect-config';
@@ -97,6 +98,15 @@ class HealthController {
           cross join unnest(array['base_private.bot_audience','base_private.bot_activity_daily']) t) and
         has_column_privilege(current_user,'base_private.bot_audience','consent_message_at','SELECT') as ready`);
       if (!audience.rows[0]?.ready) throw new Error('Audience permissions unavailable');
+      const broadcasts=await db.query<{ready:boolean}>(`select
+        (select bool_and(has_table_privilege(current_user,t,p))
+          from unnest(array['base_private.broadcast_campaigns','base_private.broadcast_recipients']) t
+          cross join unnest(array['SELECT','INSERT','UPDATE']) p) and
+        has_table_privilege(current_user,'base_private.broadcast_scheduler','UPDATE') and
+        has_column_privilege(current_user,'base_private.bot_audience','destination_ciphertext','SELECT') and
+        (select bool_and(not has_table_privilege(r,t,'SELECT')) from unnest(array['anon','authenticated','service_role']) r
+          cross join unnest(array['base_private.broadcast_campaigns','base_private.broadcast_recipients','base_private.broadcast_scheduler']) t) as ready`);
+      if(!broadcasts.rows[0]?.ready)throw new Error('Broadcast permissions unavailable');
       phase = 'permissions';
       const connectionPermissionsOk = state?.bot_insert && state.credential_insert &&
         state.account_quota_read && state.account_quota_write && state.audit_read;
@@ -193,7 +203,7 @@ class HealthController {
 
 @Module({ controllers: [
   HealthController, PublicConfigController, BotsController, BotConfigController,
-  MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController, ContentController, AudienceController
+  MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController, ContentController, AudienceController, BroadcastController, BroadcastDispatchController
 ] })
 class AppModule {}
 

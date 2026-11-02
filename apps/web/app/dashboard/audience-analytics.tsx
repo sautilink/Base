@@ -68,9 +68,9 @@ export default function AudienceAnalytics({ botId, request }: {
       </div>
       <div className="audience-consent"><h4>Subscriptions belong to your visitors</h4>
         <p>Visitors send <code>/subscribe</code> to join and <code>/unsubscribe</code> to leave. Starting the bot does not subscribe them. Opting out keeps ordinary commands and menus available.</p>
-        <p className="notice">{data.unsubscribed} opted out. Broadcast sending is a later phase; this page records preferences and usage only.</p>
+        <p className="notice">{data.unsubscribed} opted out. Use Broadcast Center to prepare messages for delivery-ready subscribers.</p>
       </div>
-      <p className="notice">Figures begin with this analytics release. Only private text messages and supported menu taps are counted once per Telegram update. No names, usernames, chat IDs or message contents are saved in analytics. Counts do not confirm message receipt.</p>
+      <p className="notice">Figures begin with the analytics release. Only private text messages and supported menu taps are counted once per Telegram update. Analytics exposes totals only; broadcast destinations are stored encrypted after /subscribe and removed on /unsubscribe. Counts do not confirm message receipt.</p>
     </>}
   </section>;
 }

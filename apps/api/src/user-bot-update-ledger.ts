@@ -55,13 +55,14 @@ export async function claimUserBotUpdate(botId: string, updateId: number, observ
       // The claim, consent preference and counters commit together. A DB
       // failure rolls everything back so Telegram can safely retry before send.
       const state = observation.action === 'subscribe' ? 'subscribed' : observation.action === 'unsubscribe' ? 'unsubscribed' : 'not_subscribed';
-      await client.query(`insert into base_private.bot_audience(bot_id,visitor_key,subscription_state,consent_update_id,consent_message_at)
-        values($1,$2,$3,$4,$5) on conflict(bot_id,visitor_key) do update set
+      await client.query(`insert into base_private.bot_audience(bot_id,visitor_key,subscription_state,consent_update_id,consent_message_at,destination_ciphertext)
+        values($1,$2,$3,$4,$5,$6) on conflict(bot_id,visitor_key) do update set
         last_seen_at=greatest(bot_audience.last_seen_at,excluded.last_seen_at),
         subscription_state=case when (excluded.consent_message_at,excluded.consent_update_id)>(bot_audience.consent_message_at,bot_audience.consent_update_id) then excluded.subscription_state else bot_audience.subscription_state end,
         consent_update_id=case when (excluded.consent_message_at,excluded.consent_update_id)>(bot_audience.consent_message_at,bot_audience.consent_update_id) then excluded.consent_update_id else bot_audience.consent_update_id end,
+        destination_ciphertext=case when (excluded.consent_message_at,excluded.consent_update_id)>(bot_audience.consent_message_at,bot_audience.consent_update_id) then excluded.destination_ciphertext else bot_audience.destination_ciphertext end,
         consent_message_at=greatest(bot_audience.consent_message_at,excluded.consent_message_at)`,
-        [botId,observation.visitorKey,state,observation.action ? updateId : -1,observation.action ? observation.actionAt : -1]);
+        [botId,observation.visitorKey,state,observation.action ? updateId : -1,observation.action ? observation.actionAt : -1,observation.action === 'subscribe' ? observation.destination ?? null : null]);
       await client.query(`insert into base_private.bot_activity_daily(bot_id,day,messages,menu_clicks)
         values($1,(now() at time zone 'UTC')::date,$2,$3) on conflict(bot_id,day) do update set
         messages=bot_activity_daily.messages+excluded.messages,

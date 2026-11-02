@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { getSupabase } from '../../lib/supabase';
 import ContentManager from './content-manager';
 import AudienceAnalytics from './audience-analytics';
+import BroadcastCenter from './broadcast-center';
 
 type Command = { id: string; command: string; response_text: string; content_id?: string|null };
 type Rule = { id: string; keyword: string; response_text: string; enabled: boolean };
@@ -272,6 +273,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
     {notice && <p className="notice" role="status">{notice}</p>}
     {!config ? null : <>
       <AudienceAnalytics botId={botId} request={request}/>
+      <BroadcastCenter botId={botId} request={request} revision={config}/>
       <ContentManager botId={botId} request={request} onChanged={refresh}/>
       <div className="builder-section">
         <h3>Telegram delivery</h3>

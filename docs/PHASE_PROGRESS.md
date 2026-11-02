@@ -2,6 +2,11 @@
 
 Source branch: `feat/phase-1-foundation`. PR #1 remains Draft. Cloudflare Production serves this branch at `base.sautilink.com` at the owner's request; `main` remains empty and the separate SautiLink App infrastructure is unchanged.
 
+## Phase 10: Broadcast Center and scheduling — 2026-11-02
+
+- Added owner drafts, saved-content/media preview, explicit final review, UTC scheduling, durable recipient queue, cancellation and progress counts. Delivery-ready destinations are captured encrypted only on a new `/subscribe` and cleared on `/unsubscribe`.
+- Local verification passed 104 API tests, six web tests, typechecks and a Next production build. Rolled-back Base database lifecycle/grant tests passed. Scheduler activation requires a dedicated server secret; no real broadcast has been sent by these tests. See `docs/PHASE_10_BROADCAST_CENTER.md` for bounds and rollout.
+
 ## Phase 9: Audience and subscription analytics — 2026-11-02
 
 - Added owner-only audience counts, rolling activity, selectable 30-day chart and daily figures in the web/Mini App editor.
@@ -66,7 +71,8 @@ See `docs/DELIVERY_HEALTH.md` for staged rollout order.
 | Telegram Mini App | Inline master-bot launch, signed launch verification, owner editor and second-account empty list passed; separate Base Auth still gates bot data | Complete wider operational review before broad access |
 | Content and menus | Private media library, content commands, nested buttons/links, simulator and real Telegram image/menu delivery passed | Media quota/retention automation and wider operational review before broad access |
 | Audience analytics | Owner counts, 30-day chart/table and explicit preferences live on the custom domain; CI/browser/SQL checks passed; owner confirmed real Telegram subscribe/unsubscribe/ping replies | Monitor live usage; review retention and key rotation before broader access |
-| Broadcast, scheduling and team access | Not implemented | Encrypted destinations, consent-preserving collection, queues, quotas and permissions |
+| Broadcast and scheduling | Draft/review, encrypted destinations and bounded durable dispatch implemented | Verify live draft flow; activate the dedicated scheduler only after approval, then test an explicitly confirmed campaign |
+| Team access | Not implemented | Design roles and permissions |
 | Public web | Base web is live on the custom domain, and user-bot connection is limited to the two approved test accounts | Review security, monitoring, retention, backups and bot delivery before a broader release or PR merge |
 
 The Base platform is free for users, with fair-use protections. Never put BotFather tokens, database credentials, service-role keys, or webhook secrets in chat, GitHub, frontend bundles or public API responses. See `docs/PHASE_2_MASTER_BOT.md` and `docs/API_DEPLOYMENT.md` for the current staging runbooks.

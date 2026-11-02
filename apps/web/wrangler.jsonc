@@ -1,7 +1,8 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "sautilink-base-web",
-  "main": ".open-next/worker.js",
+  "main": "custom-worker.ts",
+  "triggers": { "crons": ["* * * * *"] },
   "compatibility_date": "2026-10-26",
   "compatibility_flags": [
     "nodejs_compat"

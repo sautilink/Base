@@ -10,6 +10,8 @@
 
 ## Current implementation
 
+- Phase 10 Broadcast Center is implemented: drafts, media preview, content/audience review, schedule/send confirmation, durable queue, cancellation and owner progress. Local 104 API/six web tests, typechecks, Next build and rolled-back DB lifecycle/grant tests pass. Verify live rollout before claiming it live. Activating its dedicated scheduler credential requires action-time owner approval; no real broadcast has been sent by these checks. See `docs/PHASE_10_BROADCAST_CENTER.md` for exact resources, shared free-hour implications and activation sequence. New `/subscribe` captures an encrypted address; old Phase 9 opt-ins need to subscribe again.
+
 - Phase 9 audience analytics is live at code `28c16cd` (95 API tests, CI #161, Render `dep-dbka6pugekts73f6ue20` exact release/ready, Cloudflare `a3462741` active 100%). Both Base-only migrations and rolled-back DB/real-query isolation tests passed. Owner browser chart/table/simulator checks passed; no real subscriber or fixture was created by those checks. The owner subsequently confirmed real `/subscribe`, `/unsubscribe`, `/ping` replies all worked on @techhubtz_support_bot. Post-test dashboard counters were not independently rechecked in this acceptance update. See `docs/PHASE_9_AUDIENCE_ANALYTICS.md`; broadcast sending remains future work. Analytics uses HMAC pseudonyms, not stored chat IDs; future broadcasts require a separate consent-preserving encrypted destination design.
 
 - Phase 8 Content Manager and Menu Builder are live: text, private photo/video/audio/document uploads, content command bindings, nested menus/HTTPS buttons, interactive preview and Telegram callback/media delivery. SautiLink logo followed by gray Base appears throughout the web UI.
