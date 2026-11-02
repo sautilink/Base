@@ -10,7 +10,7 @@
 
 ## Current implementation
 
-- Phase 9 audience analytics is implemented with 95 passing API tests, typechecks and a Next production build. Both Base-only migrations and rolled-back DB/real-query isolation tests passed. Await exact live deployment and new Telegram interaction acceptance before claiming it live. See `docs/PHASE_9_AUDIENCE_ANALYTICS.md`; broadcasts remain future work.
+- Phase 9 audience analytics is live at code `28c16cd` (95 API tests, CI #161, Render `dep-dbka6pugekts73f6ue20` exact release/ready, Cloudflare `a3462741` active 100%). Both Base-only migrations and rolled-back DB/real-query isolation tests passed. Owner browser chart/table/simulator checks passed; no real subscriber or fixture was created by these checks. The user was asked once to test `/subscribe`, `/unsubscribe`, `/ping` on @techhubtz_support_bot; their result is pending. See `docs/PHASE_9_AUDIENCE_ANALYTICS.md`; broadcast sending remains future work. Analytics uses HMAC pseudonyms, not stored chat IDs; future broadcasts require a separate consent-preserving encrypted destination design.
 
 - Phase 8 Content Manager and Menu Builder are live: text, private photo/video/audio/document uploads, content command bindings, nested menus/HTTPS buttons, interactive preview and Telegram callback/media delivery. SautiLink logo followed by gray Base appears throughout the web UI.
 

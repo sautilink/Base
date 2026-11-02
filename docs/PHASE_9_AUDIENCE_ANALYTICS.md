@@ -27,4 +27,12 @@ Pseudonyms use the existing server-only `USER_BOT_WEBHOOK_SECRET_KEY` with a sep
 - Both migrations are applied and recorded on Base only. Rolled-back database probes passed RLS/grants, nonnegative counters, invalid identity rejection, delayed consent and update-ID restarts. The actual API aggregate query passed correct totals, 30 filled days and foreign-owner denial. No fixture bot or audience row is retained.
 - Publish with the existing Cloudflare feature-branch pipeline and manually deploy the same tested revision to the dedicated Base API. Confirm exact API release/ready health, the `phase-9-audience-analytics` web marker, and authenticated browser behavior before declaring live acceptance.
 
-Live deployment and Telegram acceptance evidence is recorded below when verified. A zero audience immediately after rollout is expected until a new interaction arrives.
+## Live checkpoint — 2026-11-02
+
+- Code revision `28c16cd4cae78a8d432de1c4c6454b60ace1449d` passed [CI #161](https://github.com/sautilink/Base/actions/runs/41465551125), including the OpenNext build and Wrangler dry-run.
+- Render deployment `dep-dbka6pugekts73f6ue20` became Live. `/health/release` returned that exact revision and `/health/ready` returned ready. The unsigned analytics endpoint returned 401 with `Cache-Control: no-store`.
+- Cloudflare build `b5975a90-01e3-4595-bf22-12b37fb43b6f` was Ready, with Worker `a3462741` active at 100% traffic. The custom domain returned `phase-9-audience-analytics`.
+- Authenticated owner browser acceptance passed on `base.sautilink.com`: session survived refresh, the active bot/content/menus remained visible, the new analytics endpoint loaded, chart selection and all 30 daily rows worked. Simulating `/subscribe` returned the preference guidance and left the real audience/subscriber counts at zero.
+- The final database integrity check found zero fixture bots, zero audience rows, zero activity buckets, and both migration-history entries. A zero audience at rollout is expected until a new real interaction arrives.
+- Security Advisor was rerun: zero errors, zero informational findings, with only the pre-existing [Leaked Password Protection Disabled warning](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
+- Real Telegram `/subscribe → /unsubscribe → /ping` acceptance was requested once and is pending the user's result. Do not treat simulator/SQL checks as proof that those replies were received in Telegram.
