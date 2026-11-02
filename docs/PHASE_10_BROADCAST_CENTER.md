@@ -46,3 +46,13 @@ Operational consequence: one-minute polling keeps the free Base API active. Rend
 - Six web tests pass, including secret-free disabled cron behavior, fixed-host header-only dispatch, no retry and existing browser-origin/security checks.
 - The rolled-back database probe passed private grants/RLS, owner predicates, audience snapshots, unique recipient/active-campaign constraints, opt-out eligibility, crash handling and cancellation. Its fixtures never invoke Telegram.
 - Migration `20261102151851_base_broadcast_center` is applied and recorded on Base only. The post-apply check found zero fixture bots and zero campaigns. Record confirmed rollout and remaining activation/Telegram acceptance below.
+
+## Live checkpoint — 2026-11-02
+
+- Code `843f0b7c399eb1f29473b92326f4c3012f10aaa0` passed [CI #164](https://github.com/sautilink/Base/actions/runs/41473393354), including the custom OpenNext Worker build and Wrangler dry-run.
+- Render deployment `dep-dbkatmh42hec73f59rs0` became Live. Exact release SHA and ready health passed; unsigned broadcasts returned 401 and the disabled dispatch endpoint returned 404.
+- Cloudflare build `e854e544-280c-4546-a1d2-c8c9f8192db6` published Worker `5ea9f654`, Ready at 100% traffic. The custom domain exposes `phase-10-broadcast-center`. Its slower initialization/dependency stage completed successfully; build configuration was not changed speculatively.
+- Owner browser acceptance passed: `Base broadcast demo` saved as a draft using the existing demo photo, survived refresh, and displayed its private media/caption in final review. Dar es Salaam schedule preview displayed the chosen local time. Both confirmation modes stayed disabled while the scheduler and eligible audience were unavailable.
+- The real owner analytics now show one visitor, three private messages and zero subscribed after the Phase 9 opt-out, matching the owner's reported three-command test.
+- Security Advisor rerun found zero errors and zero informational findings; only the pre-existing [leaked-password-protection warning](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) remains. The actual dispatcher claim query also passed PostgreSQL EXPLAIN parsing/planning without claiming or sending a recipient.
+- Scheduler credential creation/activation is pending action-time owner approval. The one retained demo draft is editable and has not been queued. No real broadcast or timed Telegram acceptance is claimed yet. Keep `BASE_BROADCAST_ENABLED` off until the dedicated secret is approved and configured on both named resources, then verify heartbeat before a concrete owner-confirmed campaign.
