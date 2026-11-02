@@ -23,6 +23,7 @@ function textField(body: unknown, key: string, max: number, allowEmpty = false):
 export function parseCommand(body: unknown): CommandInput {
   const raw = textField(body, 'command', 33).replace(/^\//, '').toLowerCase();
   if (!/^[a-z0-9_]{1,32}$/.test(raw)) throw new InvalidBotConfig('Command must use 1-32 lowercase letters, numbers or underscores');
+  if (raw === 'subscribe' || raw === 'unsubscribe') throw new InvalidBotConfig('This command is reserved for subscription preferences');
   return { command: raw, responseText: textField(body, 'responseText', 4000) };
 }
 

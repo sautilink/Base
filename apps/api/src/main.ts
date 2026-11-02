@@ -10,6 +10,7 @@ import { UserBotLifecycleController } from './user-bot-lifecycle.controller';
 import { UserBotWebhookController } from './user-bot-webhook.controller';
 import { MiniAppController } from './miniapp.controller';
 import { ContentController } from './content.controller';
+import { AudienceController } from './audience.controller';
 import { pool } from './auth-db';
 import { registerMasterWebhook } from './master-registration';
 import { assertBotConnectConfigured, assertUserBotDeliveryConfigured } from './bot-connect-config';
@@ -87,6 +88,15 @@ class HealthController {
       const state = result.rows[0];
       const builder=await db.query<{ready:boolean}>(`select has_table_privilege(current_user,'public.base_content_items','SELECT,INSERT,UPDATE') and has_table_privilege(current_user,'public.base_menu_items','SELECT,INSERT,UPDATE,DELETE') and has_column_privilege(current_user,'storage.objects','metadata','SELECT') as ready`);
       if(!builder.rows[0]?.ready)throw new Error('Content builder permissions unavailable');
+      const audience = await db.query<{ready:boolean}>(`select
+        (select bool_and(has_table_privilege(current_user,t,p))
+          from unnest(array['base_private.bot_audience','base_private.bot_activity_daily']) t
+          cross join unnest(array['SELECT','INSERT','UPDATE']) p) and
+        (select bool_and(not has_table_privilege(r,t,'SELECT'))
+          from unnest(array['anon','authenticated','service_role']) r
+          cross join unnest(array['base_private.bot_audience','base_private.bot_activity_daily']) t) and
+        has_column_privilege(current_user,'base_private.bot_audience','consent_message_at','SELECT') as ready`);
+      if (!audience.rows[0]?.ready) throw new Error('Audience permissions unavailable');
       phase = 'permissions';
       const connectionPermissionsOk = state?.bot_insert && state.credential_insert &&
         state.account_quota_read && state.account_quota_write && state.audit_read;
@@ -183,7 +193,7 @@ class HealthController {
 
 @Module({ controllers: [
   HealthController, PublicConfigController, BotsController, BotConfigController,
-  MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController, ContentController
+  MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController, ContentController, AudienceController
 ] })
 class AppModule {}
 

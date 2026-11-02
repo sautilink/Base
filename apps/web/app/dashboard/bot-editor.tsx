@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { getSupabase } from '../../lib/supabase';
 import ContentManager from './content-manager';
+import AudienceAnalytics from './audience-analytics';
 
 type Command = { id: string; command: string; response_text: string; content_id?: string|null };
 type Rule = { id: string; keyword: string; response_text: string; enabled: boolean };
@@ -13,7 +14,7 @@ type Config = {
   menus?:{id:string}[];
 };
 type ErrorResponse = { message?: string | string[] };
-type Simulation = { simulated: true; matchType: 'welcome' | 'command' | 'keyword' | 'menu' | 'content' | 'none'; matchedValue: string | null; responseText: string | null;content?:{title:string;kind:string} };
+type Simulation = { simulated: true; matchType: 'welcome' | 'command' | 'keyword' | 'menu' | 'content' | 'subscription' | 'none'; matchedValue: string | null; responseText: string | null;content?:{title:string;kind:string} };
 type WebhookHealth = {
   ownership: 'base' | 'none' | 'other';
   pendingUpdates: number | null;
@@ -270,6 +271,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
     </header>
     {notice && <p className="notice" role="status">{notice}</p>}
     {!config ? null : <>
+      <AudienceAnalytics botId={botId} request={request}/>
       <ContentManager botId={botId} request={request} onChanged={refresh}/>
       <div className="builder-section">
         <h3>Telegram delivery</h3>

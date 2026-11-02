@@ -2,6 +2,12 @@
 
 Source branch: `feat/phase-1-foundation`. PR #1 remains Draft. Cloudflare Production serves this branch at `base.sautilink.com` at the owner's request; `main` remains empty and the separate SautiLink App infrastructure is unchanged.
 
+## Phase 9: Audience and subscription analytics — 2026-11-02
+
+- Added owner-only audience counts, rolling activity, selectable 30-day chart and daily figures in the web/Mini App editor.
+- Added explicit `/subscribe` and `/unsubscribe`; ordinary bot use never grants opt-in. Claims, consent and counters commit atomically. Private HMAC pseudonyms replace raw Telegram identities in analytics.
+- See `docs/PHASE_9_AUDIENCE_ANALYTICS.md` for verification, scope and rollout. Broadcast sending and scheduling remain future work.
+
 ## Phase 8: Content Manager and Menu Builder — 2026-11-02
 
 - Added private media uploads, saved text/media content, command bindings, nested menus, HTTPS buttons, Back navigation, interactive preview, and callback/media delivery. Web branding uses the existing SautiLink logo followed by gray Base.
@@ -59,7 +65,8 @@ See `docs/DELIVERY_HEALTH.md` for staged rollout order.
 | Commands and keyword replies | Owner-scoped editor/API and read-only simulator exist. Restricted activation, per-bot signed webhook, private delivery ledger and pause control are implemented. The real test bot replied `pong` to `/ping`; the ledger recorded one sent update | Test live pause and two-account editor isolation; add operational recovery for ambiguous/stalled deliveries before broad access |
 | Telegram Mini App | Inline master-bot launch, signed launch verification, owner editor and second-account empty list passed; separate Base Auth still gates bot data | Complete wider operational review before broad access |
 | Content and menus | Private media library, content commands, nested buttons/links, simulator and real Telegram image/menu delivery passed | Media quota/retention automation and wider operational review before broad access |
-| Broadcast, scheduling, analytics and team access | Not implemented | Design consent, queues, quotas and permissions |
+| Audience analytics | Owner counts, 30-day chart/table and explicit subscription preferences implemented | Confirm exact deployment and real Telegram activity before declaring live acceptance |
+| Broadcast, scheduling and team access | Not implemented | Encrypted destinations, consent-preserving collection, queues, quotas and permissions |
 | Public web | Base web is live on the custom domain, and user-bot connection is limited to the two approved test accounts | Review security, monitoring, retention, backups and bot delivery before a broader release or PR merge |
 
 The Base platform is free for users, with fair-use protections. Never put BotFather tokens, database credentials, service-role keys, or webhook secrets in chat, GitHub, frontend bundles or public API responses. See `docs/PHASE_2_MASTER_BOT.md` and `docs/API_DEPLOYMENT.md` for the current staging runbooks.

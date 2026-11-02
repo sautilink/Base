@@ -1,6 +1,7 @@
 import { menuReply, type Content, type Menu, type Button } from './content-config';
+import { audienceCommand, audienceConfirmation } from './audience';
 export type SimulatedReply = {
-  matchType: 'welcome' | 'command' | 'keyword' | 'menu' | 'none';
+  matchType: 'welcome' | 'command' | 'keyword' | 'menu' | 'subscription' | 'none';
   matchedValue: string | null;
   responseText: string | null;
   content?: Content;
@@ -35,6 +36,8 @@ function keywordMatches(text: string, keyword: string): boolean {
 export function simulateBotMessage(message: string, config: BotReplyConfiguration): SimulatedReply {
   const input = message.trim();
   if (!input || input.length > 4096) return NO_REPLY;
+  const action = audienceCommand(input, config.username);
+  if (action) return { matchType: 'subscription', matchedValue: '/' + action, responseText: audienceConfirmation(action) };
 
   // Telegram supports both /command and /command@BotUsername, plus /start payloads.
   if (input.startsWith('/')) {

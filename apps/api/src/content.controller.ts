@@ -89,6 +89,7 @@ export class ContentController {
     await this.owner(auth,botId);this.id(id);
     const command=this.parse(()=>field(body,'command',33)).replace(/^\//,'').toLowerCase();
     if(!/^[a-z0-9_]{1,32}$/.test(command))throw new BadRequestException('Invalid command');
+    if(command==='subscribe'||command==='unsubscribe')throw new BadRequestException('This command is reserved for subscription preferences');
     try {
       const r=await pool().query(`insert into public.base_commands(bot_id,command,response_text,content_id) select bot_id,$3,'',id from public.base_content_items where id=$1 and bot_id=$2 and not archived returning id`,[id,botId,command]);
       if(!r.rowCount)throw new NotFoundException();return r.rows[0];

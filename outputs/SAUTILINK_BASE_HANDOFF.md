@@ -10,6 +10,8 @@
 
 ## Current implementation
 
+- Phase 9 audience analytics is implemented with 95 passing API tests, typechecks and a Next production build. Both Base-only migrations and rolled-back DB/real-query isolation tests passed. Await exact live deployment and new Telegram interaction acceptance before claiming it live. See `docs/PHASE_9_AUDIENCE_ANALYTICS.md`; broadcasts remain future work.
+
 - Phase 8 Content Manager and Menu Builder are live: text, private photo/video/audio/document uploads, content command bindings, nested menus/HTTPS buttons, interactive preview and Telegram callback/media delivery. SautiLink logo followed by gray Base appears throughout the web UI.
 
 - Base Auth, owner-scoped bot connection and editing, commands and keyword replies, simulator, activation/pause, encrypted BotFather token storage and token rotation.
