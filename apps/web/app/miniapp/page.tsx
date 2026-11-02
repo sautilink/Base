@@ -7,10 +7,11 @@ import DashboardPage from '../dashboard/page';
 import { getBaseApiUrl, getSupabase } from '../../lib/supabase';
 
 type TelegramWebApp = { initData: string; ready(): void; expand(): void };
-type Gate = 'checking' | 'signed-in' | 'signed-out' | 'missing' | 'invalid' | 'error';
+type Gate = 'checking' | 'signed-in' | 'signed-out' | 'missing' | 'invalid' | 'error' | 'auth-error';
 
 export default function MiniAppPage() {
   const [gate, setGate] = useState<Gate>('checking');
+  const [failure, setFailure] = useState<string | null>(null);
   const started = useRef(false);
 
   useEffect(() => {
@@ -25,23 +26,33 @@ export default function MiniAppPage() {
     started.current = true;
     const telegram = (window as Window & { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
     if (!telegram?.initData) { setGate('missing'); return; }
-    telegram.ready();
+    try { telegram.ready(); } catch { /* UI hint only; signed initData is verified below. */ }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 90000);
     try {
       const api = getBaseApiUrl();
-      if (!api) throw new Error('API unavailable');
+      if (!api) { setFailure('configuration'); setGate('error'); return; }
       const response = await fetch(api + '/telegram/miniapp/verify', {
         method: 'POST', mode: 'cors', cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ initData: telegram.initData }),
-        signal: AbortSignal.timeout(15000)
+        signal: controller.signal
       });
       if (response.status === 401) { setGate('invalid'); return; }
-      if (!response.ok) throw new Error('Verification unavailable');
-      telegram.expand();
+      if (!response.ok) { setFailure(`HTTP ${response.status}`); setGate('error'); return; }
+      try { telegram.expand(); } catch { /* Expansion is optional. */ }
+    } catch {
+      setFailure(controller.signal.aborted ? 'timeout' : 'network');
+      setGate('error');
+      return;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+    try {
       const supabase = await getSupabase();
       const { data, error } = await supabase.auth.getUser();
       setGate(!error && data.user ? 'signed-in' : 'signed-out');
-    } catch { setGate('error'); }
+    } catch { setGate('auth-error'); }
   }
 
   return <div className="miniapp-root">
@@ -57,7 +68,12 @@ export default function MiniAppPage() {
       </>}
       {gate === 'missing' && <p role="status">Open this Mini App from @SautiLinkBaseBot in Telegram.</p>}
       {gate === 'invalid' && <p role="status">This Telegram session is invalid or expired. Close and reopen the Mini App from @SautiLinkBaseBot.</p>}
-      {gate === 'error' && <p role="status">Mini App verification is unavailable. Close and reopen it in a moment.</p>}
+      {gate === 'error' && <>
+        <p role="status">Base verification service is unavailable. Try again.</p>
+        {failure && <p>Code: {failure}</p>}
+        <button type="button" onClick={() => { started.current = false; setFailure(null); setGate('checking'); void verify(); }}>Retry verification</button>
+      </>}
+      {gate === 'auth-error' && <p role="status">Base sign-in service is unavailable. Close and reopen the Mini App in a moment.</p>}
     </section></main>}
   </div>;
 }
