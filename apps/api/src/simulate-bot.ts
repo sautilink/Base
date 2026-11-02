@@ -1,14 +1,19 @@
+import { menuReply, type Content, type Menu, type Button } from './content-config';
 export type SimulatedReply = {
-  matchType: 'welcome' | 'command' | 'keyword' | 'none';
+  matchType: 'welcome' | 'command' | 'keyword' | 'menu' | 'none';
   matchedValue: string | null;
   responseText: string | null;
+  content?: Content;
+  buttons?: Button[];
 };
 
 export type BotReplyConfiguration = {
   username: string;
   welcome_message: string;
-  commands: ReadonlyArray<{ command: string; response_text: string }>;
+  commands: ReadonlyArray<{ command: string; response_text: string; content_id?: string | null }>;
   rules: ReadonlyArray<{ keyword: string; response_text: string; enabled: boolean }>;
+  contents?: ReadonlyArray<Content>;
+  menus?: ReadonlyArray<Menu>;
 };
 
 const NO_REPLY: SimulatedReply = { matchType: 'none', matchedValue: null, responseText: null };
@@ -38,10 +43,14 @@ export function simulateBotMessage(message: string, config: BotReplyConfiguratio
     const [, command, mentionedBot] = parsed;
     if (mentionedBot && mentionedBot.toLowerCase() !== config.username.toLowerCase()) return NO_REPLY;
 
-    if (command.toLowerCase() === 'start' && config.welcome_message.trim()) {
-      return { matchType: 'welcome', matchedValue: '/start', responseText: config.welcome_message };
+    const root = config.menus?.length ? menuReply(null,config.menus,config.contents??[]) : null;
+    if(command.toLowerCase()==='menu' && root) return {matchType:'menu',matchedValue:'/menu',...root};
+    if (command.toLowerCase() === 'start' && (config.welcome_message.trim() || root)) {
+      return { matchType: 'welcome', matchedValue: '/start', responseText: config.welcome_message || 'Choose an option:', ...(root?{buttons:root.buttons}:{}) };
     }
     const configured = config.commands.find(item => item.command.toLowerCase() === command.toLowerCase());
+    const content=configured?.content_id?config.contents?.find(c=>c.id===configured.content_id&&!c.archived):undefined;
+    if(content) return {matchType:'command',matchedValue:'/'+configured!.command,responseText:content.body,content};
     if (configured?.response_text.trim()) {
       return { matchType: 'command', matchedValue: '/' + configured.command, responseText: configured.response_text };
     }

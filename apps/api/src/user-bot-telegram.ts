@@ -32,7 +32,7 @@ export function privateTextMessage(body: unknown): { chatId: number; text: strin
 
 /** All errors are intentionally generic: Telegram request URLs contain bot tokens. */
 export async function userBotTelegramCall(
-  token: string, method: 'getWebhookInfo' | 'setWebhook' | 'deleteWebhook' | 'sendMessage',
+  token: string, method: 'getWebhookInfo' | 'setWebhook' | 'deleteWebhook' | 'sendMessage' | 'sendPhoto' | 'sendVideo' | 'sendAudio' | 'sendDocument' | 'answerCallbackQuery',
   body?: Record<string, unknown>, fetcher: typeof fetch = fetch
 ): Promise<unknown> {
   let response: Response;
@@ -65,15 +65,15 @@ async function webhookInfo(token: string, fetcher: typeof fetch): Promise<{ url:
 
 /** Refuse to take over a webhook belonging to another application. */
 export async function registerUserBotWebhook(
-  token: string, botId: string, secret: string, fetcher: typeof fetch = fetch
+  token: string, botId: string, secret: string, fetcher: typeof fetch = fetch, dropPending = true
 ): Promise<void> {
   const url = userBotWebhookUrl(botId);
   const previous = await webhookInfo(token, fetcher);
   if (previous.url && previous.url !== url) throw new ForeignWebhookError('Bot already uses another Telegram webhook');
   const registered = await userBotTelegramCall(token, 'setWebhook', {
-    url, secret_token: secret, allowed_updates: ['message'],
+    url, secret_token: secret, allowed_updates: ['message','callback_query'],
     // A paused bot must not answer messages queued while its webhook was removed.
-    max_connections: 1, drop_pending_updates: true
+    max_connections: 1, drop_pending_updates: dropPending
   }, fetcher);
   if (registered !== true || (await webhookInfo(token, fetcher)).url !== url) {
     throw new Error('Telegram webhook registration not confirmed');

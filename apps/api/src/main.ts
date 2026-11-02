@@ -9,6 +9,7 @@ import { PublicConfigController } from './public-config.controller';
 import { UserBotLifecycleController } from './user-bot-lifecycle.controller';
 import { UserBotWebhookController } from './user-bot-webhook.controller';
 import { MiniAppController } from './miniapp.controller';
+import { ContentController } from './content.controller';
 import { pool } from './auth-db';
 import { registerMasterWebhook } from './master-registration';
 import { assertBotConnectConfigured, assertUserBotDeliveryConfigured } from './bot-connect-config';
@@ -84,6 +85,8 @@ class HealthController {
           has_table_privilege(current_user, 'base_private.bot_connect_limits', 'UPDATE') as account_quota_write,
         has_table_privilege(current_user, 'base_private.bot_connect_audit', 'SELECT') as audit_read`);
       const state = result.rows[0];
+      const builder=await db.query<{ready:boolean}>(`select has_table_privilege(current_user,'public.base_content_items','SELECT,INSERT,UPDATE') and has_table_privilege(current_user,'public.base_menu_items','SELECT,INSERT,UPDATE,DELETE') and has_column_privilege(current_user,'storage.objects','metadata','SELECT') as ready`);
+      if(!builder.rows[0]?.ready)throw new Error('Content builder permissions unavailable');
       phase = 'permissions';
       const connectionPermissionsOk = state?.bot_insert && state.credential_insert &&
         state.account_quota_read && state.account_quota_write && state.audit_read;
@@ -180,7 +183,7 @@ class HealthController {
 
 @Module({ controllers: [
   HealthController, PublicConfigController, BotsController, BotConfigController,
-  MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController
+  MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController, ContentController
 ] })
 class AppModule {}
 
@@ -194,6 +197,7 @@ async function bootstrap() {
   // Express req.ip uses the rightmost forwarded address from this one hop.
   app.set('trust proxy', 1);
   app.useBodyParser('json', { limit: '16kb' });
+  app.use('/bots', (_req:unknown,res:{setHeader:(name:string,value:string)=>void},next:()=>void)=>{res.setHeader('Cache-Control','no-store');next();});
   const origins = [process.env.WEB_ORIGIN, 'https://base.sautilink.com'].filter((value): value is string => !!value);
   app.enableCors({ origin: origins, methods: ['GET', 'POST', 'PATCH', 'DELETE'], allowedHeaders: ['Authorization', 'Content-Type'] });
   await app.listen(Number(process.env.PORT ?? 3001), '0.0.0.0');

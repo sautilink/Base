@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabase, getBaseApiUrl, getPublicBaseConfig } from '../../lib/supabase';
 import BotEditor from './bot-editor';
+import Brand from '../brand';
 
 type Bot = { id: string; username: string; display_name: string; status: string };
 
@@ -173,7 +174,7 @@ export default function DashboardPage() {
 
   return <main className="dashboard-main"><section className="card dashboard-card">
     <div className="dashboard-topline">
-      <div><span className="eyebrow">SAUTILINK BASE · DASHBOARD</span>
+      <div><Brand/>
         <h1>Your bots.</h1>
         <p>Build smarter Telegram bots. All features are free.</p></div>
       {authState === 'signed-in' && <button className="secondary" type="button" onClick={() => void signOut()}>Sign out</button>}

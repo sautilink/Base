@@ -63,7 +63,7 @@ test('registration refuses a foreign webhook and verifies the reviewed destinati
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     if (method === 'setWebhook') {
       assert.equal(body.url, userBotWebhookUrl(botId));
-      assert.deepEqual(body.allowed_updates, ['message']);
+      assert.deepEqual(body.allowed_updates, ['message','callback_query']);
       assert.equal(body.drop_pending_updates, true);
       assert.equal(body.max_connections, 1);
       currentUrl = String(body.url);

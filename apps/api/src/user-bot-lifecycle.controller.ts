@@ -82,7 +82,8 @@ export class UserBotLifecycleController {
     if (bot.status !== 'inactive') throw new ConflictException('Bot cannot be activated in its current state');
     const configured = await pool().query<{ ready: boolean }>(
       `select (length(trim($2::text)) > 0 or
-        exists(select 1 from public.base_commands where bot_id=$1 and length(trim(response_text)) > 0) or
+        exists(select 1 from public.base_commands where bot_id=$1 and (length(trim(response_text)) > 0 or content_id is not null)) or
+        exists(select 1 from public.base_menu_items where bot_id=$1) or
         exists(select 1 from public.base_reply_rules where bot_id=$1 and enabled and length(trim(response_text)) > 0)) as ready`,
       [bot.id, bot.welcome_message]
     );

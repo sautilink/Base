@@ -2,16 +2,18 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { getSupabase } from '../../lib/supabase';
+import ContentManager from './content-manager';
 
-type Command = { id: string; command: string; response_text: string };
+type Command = { id: string; command: string; response_text: string; content_id?: string|null };
 type Rule = { id: string; keyword: string; response_text: string; enabled: boolean };
 type Config = {
   bot: { id: string; username: string; display_name: string; status: string; welcome_message: string };
   commands: Command[];
   rules: Rule[];
+  menus?:{id:string}[];
 };
 type ErrorResponse = { message?: string | string[] };
-type Simulation = { simulated: true; matchType: 'welcome' | 'command' | 'keyword' | 'none'; matchedValue: string | null; responseText: string | null };
+type Simulation = { simulated: true; matchType: 'welcome' | 'command' | 'keyword' | 'menu' | 'content' | 'none'; matchedValue: string | null; responseText: string | null;content?:{title:string;kind:string} };
 type WebhookHealth = {
   ownership: 'base' | 'none' | 'other';
   pendingUpdates: number | null;
@@ -251,7 +253,8 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
   const active = config?.bot.status === 'active';
   const hasResponse = !!config && (
     !!config.bot.welcome_message.trim() ||
-    config.commands.some(item => !!item.response_text.trim()) ||
+    !!config.menus?.length ||
+    config.commands.some(item => !!item.response_text.trim() || !!item.content_id) ||
     config.rules.some(item => item.enabled && !!item.response_text.trim())
   );
 
@@ -267,6 +270,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
     </header>
     {notice && <p className="notice" role="status">{notice}</p>}
     {!config ? null : <>
+      <ContentManager botId={botId} request={request} onChanged={refresh}/>
       <div className="builder-section">
         <h3>Telegram delivery</h3>
         {active ? <>
@@ -367,6 +371,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
           <strong>{sampleResponse.matchType === 'none' ? 'No matching reply' : 'Simulated bot reply'}</strong>
           {sampleResponse.matchedValue && <small>Matched {sampleResponse.matchType}: {sampleResponse.matchedValue}</small>}
           <p>{sampleResponse.responseText ?? 'This bot has no response configured for that message.'}</p>
+          {sampleResponse.content&&<small>Attached {sampleResponse.content.kind}: {sampleResponse.content.title}. Use Content Manager preview to view the file.</small>}
           <small>Preview only. The real Telegram bot has not sent anything.</small>
         </div>}
       </form>
@@ -375,11 +380,11 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
         <h3>Bot commands</h3>
         <p>Save a response to a command such as /help.</p>
         {config.commands.map(item => <div className="config-row" key={item.id}>
-          <div><strong>/{item.command}</strong><small>{item.response_text}</small></div>
+          <div><strong>/{item.command}</strong><small>{item.content_id?'Connected to saved content':item.response_text}</small></div>
           <div className="inline-actions">
             <button type="button" className="secondary" disabled={busy}
               onClick={() => { setEditingCommand(item.id); setCommand(item.command); setCommandResponse(item.response_text); }}>
-              Edit
+              {item.content_id?'Replace with text':'Edit'}
             </button>
             <button type="button" className="danger" disabled={busy}
               onClick={() => {

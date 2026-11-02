@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected='phase-6-reliability-gates'
+          expected='phase-8-content-menus'
           for attempt in 1 2 3 4 5 6 7 8; do
             status="$(curl --silent --show-error --max-time 20 --output base-home.html \
               --write-out '%{http_code}' https://base.sautilink.com/ || true)"

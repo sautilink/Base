@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import DashboardPage from '../dashboard/page';
+import Brand from '../brand';
 import { getBaseApiUrl, getSupabase } from '../../lib/supabase';
 
 type TelegramWebApp = { ready(): void; expand(): void };
@@ -68,7 +69,7 @@ export default function MiniAppPage() {
 
   return <div className="miniapp-root">
     {gate === 'signed-in' ? <DashboardPage /> : <main><section className="card miniapp-card">
-      <span className="eyebrow">SAUTILINK BASE · MINI APP</span>
+      <Brand/>
       <h1>Your bots in Telegram.</h1>
       {gate === 'checking' && <p role="status">Verifying your Telegram session...</p>}
       {gate === 'signed-out' && <>

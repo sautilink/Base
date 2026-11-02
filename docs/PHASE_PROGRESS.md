@@ -2,6 +2,11 @@
 
 Source branch: `feat/phase-1-foundation`. PR #1 remains Draft. Cloudflare Production serves this branch at `base.sautilink.com` at the owner's request; `main` remains empty and the separate SautiLink App infrastructure is unchanged.
 
+## Phase 8: Content Manager and Menu Builder — 2026-11-02
+
+- Added private media uploads, saved text/media content, command bindings, nested menus, HTTPS buttons, Back navigation, interactive preview, and callback/media delivery. Web branding uses the existing SautiLink logo followed by gray Base.
+- The additive migration is applied to Base only. Local typechecks and 87 API tests passed; rolled-back database tests passed owner isolation and tree/content constraints. See `docs/PHASE_8_CONTENT_MENUS.md` for scope and outstanding live acceptance.
+
 ## Phase 7: Telegram Mini App — 2026-11-02
 
 - Added a Telegram inline Mini App launch button to the Base master bot's private-chat replies, with the existing browser dashboard link retained.

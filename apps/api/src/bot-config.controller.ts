@@ -7,6 +7,8 @@ import {
   InvalidBotConfig, parseCommand, parseEnabled, parseReplyRule, parseWelcome, validUuid
 } from './bot-config';
 import { simulateBotMessage } from './simulate-bot';
+import {loadBuilder} from './builder-db';
+import {menuReply} from './content-config';
 
 function requireId(id: string): string {
   if (!validUuid(id)) throw new BadRequestException('Invalid bot or item ID');
@@ -47,7 +49,7 @@ export class BotConfigController {
     if (!bot.rows[0]) notFound();
     const [commands, rules] = await Promise.all([
       pool().query<{ id: string; command: string; response_text: string }>(
-        'select id, command, response_text from public.base_commands where bot_id=$1 order by command limit 100',
+        'select id, command, response_text, content_id from public.base_commands where bot_id=$1 order by command limit 100',
         [botId]
       ),
       pool().query<{ id: string; keyword: string; response_text: string; enabled: boolean }>(
@@ -55,7 +57,7 @@ export class BotConfigController {
         [botId]
       )
     ]);
-    return { bot: bot.rows[0], commands: commands.rows, rules: rules.rows };
+    return { bot: bot.rows[0], commands: commands.rows, rules: rules.rows, menus:(await loadBuilder(botId)).menus };
   }
 
   // Read-only simulator. It never calls Telegram or stores messages.
@@ -80,7 +82,7 @@ export class BotConfigController {
     if (!bot.rows[0]) notFound();
     const [commands, rules] = await Promise.all([
       pool().query<{ command: string; response_text: string }>(
-        'select command, response_text from public.base_commands where bot_id=$1 order by command limit 100',
+        'select command, response_text, content_id from public.base_commands where bot_id=$1 order by command limit 100',
         [botId]
       ),
       pool().query<{ keyword: string; response_text: string; enabled: boolean }>(
@@ -88,13 +90,17 @@ export class BotConfigController {
         [botId]
       )
     ]);
+    const builder=await loadBuilder(botId);
+    const direct=/^content:[0-9a-f-]{36}$/i.test(message)?builder.contents.find(c=>c.id===message.slice(8)):undefined;
+    const preview=/^menu:(root|[0-9a-f-]{36})$/i.test(message)?menuReply(message==='menu:root'?null:message.slice(5),builder.menus,builder.contents):null;
     return {
       simulated: true,
-      ...simulateBotMessage(message, {
+      ...(direct?{matchType:'content',matchedValue:direct.title,responseText:direct.body,content:direct}:preview?{matchType:'menu',matchedValue:message,...preview}:simulateBotMessage(message, {
         ...bot.rows[0],
         commands: commands.rows,
-        rules: rules.rows
-      })
+        rules: rules.rows,
+        ...builder
+      }))
     };
   }
 
@@ -136,7 +142,7 @@ export class BotConfigController {
     const data = validate(() => parseCommand(body));
     try {
       const result = await pool().query<{ id: string; command: string; response_text: string }>(
-        `update public.base_commands set command=$4, response_text=$5
+        `update public.base_commands set command=$4, response_text=$5, content_id=null
         where id=$3 and bot_id=$1 and exists
           (select 1 from public.base_bots where id=$1 and owner_id=$2)
         returning id, command, response_text`,

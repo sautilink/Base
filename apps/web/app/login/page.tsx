@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '../../lib/supabase';
+import Brand from '../brand';
 
 type AuthMode = 'password' | 'signup' | 'link';
 
@@ -64,7 +65,7 @@ export default function LoginPage() {
   }
 
   return <main><section className="card auth-card">
-    <span className="eyebrow">SAUTILINK BASE</span>
+    <Brand/>
     <h1>{mode === 'signup' ? 'Create your account.' : 'Welcome back.'}</h1>
     <p>{mode === 'signup'
       ? 'Sign up to build Telegram bots. New accounts need email confirmation.'

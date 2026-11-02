@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import Brand from './brand';
 
 export default function Home() {
   return <main><section className="card">
-    <span className="eyebrow">SAUTILINK BASE</span>
+    <Brand/>
     <h1>Build smarter bots.<br />For free.</h1>
     <p>Create and manage Telegram bots, commands and keyword replies from one simple dashboard.
       All features are free.</p>

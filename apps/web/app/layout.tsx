@@ -5,6 +5,6 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata = {
   title: 'SautiLink Base',
   description: 'Build smarter Telegram bots. For free.',
-  other: { 'base-release': 'phase-7-telegram-miniapp' }
+  other: { 'base-release': 'phase-8-content-menus' }
 };
 export default function RootLayout({ children }: { children: ReactNode }) { return <html lang="en"><body className={inter.className}>{children}</body></html>; }
