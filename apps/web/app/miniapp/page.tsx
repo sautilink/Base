@@ -2,31 +2,39 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import Script from 'next/script';
 import DashboardPage from '../dashboard/page';
 import { getBaseApiUrl, getSupabase } from '../../lib/supabase';
 
-type TelegramWebApp = { initData: string; ready(): void; expand(): void };
+type TelegramWebApp = { ready(): void; expand(): void };
 type Gate = 'checking' | 'signed-in' | 'signed-out' | 'missing' | 'invalid' | 'error' | 'auth-error';
+const LAUNCH_DATA_KEY = 'base-miniapp-launch-data';
+
+function launchInitData(): string | null {
+  const hash = window.location.hash.replace(/^#/, '');
+  const query = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : hash;
+  const values = new URLSearchParams(query).getAll('tgWebAppData');
+  if (values.length > 1) return null;
+  if (values.length === 1 && values[0]) {
+    try { window.sessionStorage.setItem(LAUNCH_DATA_KEY, values[0]); } catch { /* Storage can be disabled. */ }
+    return values[0];
+  }
+  try { return window.sessionStorage.getItem(LAUNCH_DATA_KEY); } catch { return null; }
+}
 
 export default function MiniAppPage() {
   const [gate, setGate] = useState<Gate>('checking');
   const [failure, setFailure] = useState<string | null>(null);
   const started = useRef(false);
 
-  useEffect(() => {
-    const fallback = window.setTimeout(() => {
-      if (!started.current) setGate('missing');
-    }, 6000);
-    return () => window.clearTimeout(fallback);
-  }, []);
+  useEffect(() => { void verify(); }, []);
 
   async function verify() {
     if (started.current) return;
     started.current = true;
+    const raw = launchInitData();
+    if (!raw) { setGate('missing'); return; }
     const telegram = (window as Window & { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
-    if (!telegram?.initData) { setGate('missing'); return; }
-    try { telegram.ready(); } catch { /* UI hint only; signed initData is verified below. */ }
+    try { telegram?.ready(); } catch { /* UI hint only; signed initData is verified below. */ }
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 90000);
     try {
@@ -35,12 +43,15 @@ export default function MiniAppPage() {
       const response = await fetch(api + '/telegram/miniapp/verify', {
         method: 'POST', mode: 'cors', cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: telegram.initData }),
+        body: JSON.stringify({ initData: raw }),
         signal: controller.signal
       });
-      if (response.status === 401) { setGate('invalid'); return; }
+      if (response.status === 401) {
+        try { window.sessionStorage.removeItem(LAUNCH_DATA_KEY); } catch { /* Storage can be disabled. */ }
+        setGate('invalid'); return;
+      }
       if (!response.ok) { setFailure(`HTTP ${response.status}`); setGate('error'); return; }
-      try { telegram.expand(); } catch { /* Expansion is optional. */ }
+      try { telegram?.expand(); } catch { /* Expansion is optional. */ }
     } catch {
       setFailure(controller.signal.aborted ? 'timeout' : 'network');
       setGate('error');
@@ -56,8 +67,6 @@ export default function MiniAppPage() {
   }
 
   return <div className="miniapp-root">
-    <Script src="https://telegram.org/js/telegram-web-app.js" strategy="afterInteractive"
-      onReady={() => void verify()} onError={() => setGate('error')} />
     {gate === 'signed-in' ? <DashboardPage /> : <main><section className="card miniapp-card">
       <span className="eyebrow">SAUTILINK BASE · MINI APP</span>
       <h1>Your bots in Telegram.</h1>

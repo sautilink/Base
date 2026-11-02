@@ -1,46 +1,31 @@
-# SautiLink Base — Release handoff
+# SautiLink Base — release handoff
 
-**Checkpoint:** 2026-11-01. This file is deliberately safe for source-control review. Keep operational credentials, private connection details, account IDs and internal runbook secrets out of the repository.
+**Checkpoint:** 2026-11-02. This file is safe for source control. Keep credentials, private account details and raw Telegram initData out of it.
 
-## Workstream / release boundary
+## Release boundary
 
-- SautiLink Base has an isolated development and deployment track. Never apply changes to the main SautiLink social platform.
-- The staging code is on `feat/phase-1-foundation`. The repository's `main` branch is intentionally not the release branch; do not merge without explicit release approval.
-- Phase 3, Phase 4 and Phase 5 changes from PR #2, #3 and #4 were reviewed via CI and integrated into the Base staging branch. These PRs being marked merged by GitHub does **not** imply a merge to `main`.
-- Keep live bot operations restricted to the existing approved test accounts. Do not pause, disconnect or replace credentials on a working bot during passive checks.
+- Work is on `feat/phase-1-foundation`. PR #1 is Draft and targets the intentionally empty `main`; do not merge it without a separate release decision.
+- Cloudflare Production serves the feature branch on `base.sautilink.com` at the owner's request. The separate SautiLink App infrastructure is untouched.
+- The Base Render API is a separate staging service. User-bot connection and delivery remain restricted to the approved test accounts.
 
-## Implemented
+## Current implementation
 
-- Owner-scoped Telegram bot configuration, command and keyword replies, simulator, activation/pause and reversible webhook cleanup.
-- Server-only encrypted BotFather token handling; token rotation requires a paused bot and verified bot identity.
-- At-most-once update handling. Unknown/ambiguous Telegram send outcomes are **not automatically retried**.
-- Owner-only delivery-health summary and read-only sanitized Telegram webhook diagnostics. The editor indicates missing, conflicting and cleanup-pending webhook states.
-- Phase 5 improves classification of a database failure after a delivery update has been claimed. No guarantee of exactly-once external delivery is claimed.
-- A reviewed, manually operated database retention routine can discard only terminal delivery records older than a conservative minimum age. Unresolved delivery states are never automatically deleted; there is no retention cron job.
-- Owner-only diagnostics use no-store response headers.
+- Base Auth, owner-scoped bot connection and editing, commands and keyword replies, simulator, activation/pause, encrypted BotFather token storage and token rotation.
+- Private Telegram delivery ledger, owner-only delivery and webhook-health diagnostics, conservative manual retention and at-most-once handling of ambiguous sends. Unknown outcomes are not replayed automatically.
+- @SautiLinkBaseBot offers an inline Telegram Mini App button in private chat. `/miniapp` verifies raw Telegram initData with the Base API before loading the existing dashboard. The user must still have a separate Base Auth session. Telegram identity alone grants no bot access.
 
-## Release verification
+## Verified on 2026-11-02
 
-- Phase 5 GitHub CI #140, #143 and #144 passed automated tests, typechecks, web builds and Cloudflare dry-run.
-- The dedicated Base staging API completed a successful Phase 5 deployment.
-- Only additive changes were made to the separate Base database. Security review, least-privilege checks and temporary synthetic retention testing passed. Temporary fixtures were cleaned up; the previously active user test bot and its encrypted credential remain.
-- **Cloudflare frontend publication remains a separate gate.** The recent public-domain and Preview checks responded normally but did **not** yet show the current Phase 5 release marker. Do not infer live frontend publication from CI or API success.
-- GitHub staging readiness checks passed the API liveness/readiness, protected-route and CORS steps after the backend release, but the exact frontend release check was still outstanding at the handoff checkpoint.
+- GitHub CI #154 passed for `f2e225c`; CI #155 passed for the Mini App timeout/retry fix at `16ff45c`.
+- Cloudflare build `54c86a87` published `16ff45c` as active Worker version `a1fcdf60`, Ready at 100% traffic. Direct browser access to `https://base.sautilink.com/miniapp` displays the Telegram launch guidance and no dashboard.
+- The separate Base API deployed `f2e225c` as `dep-dbjuvpp42hec73e51o00`; `/health/release` showed that exact revision and `/health/ready` was ready. The unsigned Mini App verification POST returned 401; the custom-domain CORS preflight returned 204 with the reviewed origin.
+- The owner opened the Telegram Mini App but later showed a screenshot saying verification was unavailable. The web code had a 15-second API timeout and a generic error state. `16ff45c` extended the timeout and added a safe retry, but the owner reported Retry then showed the Telegram launch guidance. A direct download of `telegram.org/js/telegram-web-app.js` from the tested network timed out, confirming the external SDK host is unavailable here. The next web revision reads Telegram's signed launch fragment directly, with API verification unchanged. A fresh Telegram acceptance test is pending.
+- The user bot remained active after the pause test. An observed `pong` arrived after reactivation, so that observation does not prove a reply while paused. Activation now drops queued Telegram updates to prevent replay on reactivation.
 
-## Next release gates, in priority order
+## Next gates
 
-1. Inspect the correct Base Worker in Cloudflare deployment history. Confirm the current staging branch's latest commit is published and its custom domain serves the Phase 5 release marker. Run the staging readiness workflow again.
-2. With genuine signed-in Base accounts, verify the bot owner can read delivery and Telegram webhook diagnostics and a second account cannot read the first owner's bot (expect not-found).
-3. Intentionally pause the dedicated Telegram test bot and verify that new private messages no longer receive Base replies. Verify webhook cleanup and reactivation. Do not interrupt a working bot merely to pass an automated check.
-4. Test BotFather replacement token only when the test owner deliberately generates a new token and supplies it through the HTTPS dashboard; never share a token in chat or GitHub.
-5. Before broad access: design an outbox/recovery queue, edge-level rate limits, backups and documented retention, and complete a manual security/readiness review.
+1. Publish the direct launch-fragment web revision, then reopen the Mini App from a fresh `/dashboard` reply in @SautiLinkBaseBot. Confirm the owner sees @techhubtz_support_bot and opens its editor; if an error persists, record only the displayed safe error code, never a token or initData.
+2. If the Mini App asks for Base sign-in, sign in inside Telegram's WebView and confirm the owner-scoped dashboard. Test a second account separately before broad access.
+3. Review rate limits, monitoring, backup/restore, retention and recovery for ambiguous Telegram delivery before a wider release.
 
-## Operational constraints
-
-- Preserve the current production-like test bot until an intentional manual acceptance test is authorized.
-- Keep administrator access, secrets, account identifiers, infrastructure connection details and private failure reports out of public source control.
-- Never automatically replay ambiguous Telegram updates; a provider timeout can occur after the message was accepted.
-- Never claim a Cloudflare Worker is live based only on a GitHub dry-run build.
-- Keep the Base early-access restrictions until the remaining acceptance gates have passed.
-
-Project detail and reviewed checklists: `docs/PHASE_PROGRESS.md`, `docs/PHASE_5_OPERATIONS.md`, `docs/USER_BOT_DELIVERY.md`, `docs/TOKEN_ROTATION.md`, and `docs/DELIVERY_HEALTH.md`.
+See `docs/PHASE_7_MINIAPP.md`, `docs/PHASE_PROGRESS.md` and the Base operational runbooks. No BotFather menu button or Main Mini App setting was changed in this phase.
