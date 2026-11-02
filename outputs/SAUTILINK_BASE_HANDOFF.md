@@ -19,13 +19,13 @@
 - GitHub CI #154 passed for `f2e225c`; CI #155 passed for the Mini App timeout/retry fix at `16ff45c`.
 - Cloudflare build `54c86a87` published `16ff45c` as active Worker version `a1fcdf60`, Ready at 100% traffic. Direct browser access to `https://base.sautilink.com/miniapp` displays the Telegram launch guidance and no dashboard.
 - The separate Base API deployed `f2e225c` as `dep-dbjuvpp42hec73e51o00`; `/health/release` showed that exact revision and `/health/ready` was ready. The unsigned Mini App verification POST returned 401; the custom-domain CORS preflight returned 204 with the reviewed origin.
-- The owner opened the Telegram Mini App but later showed a screenshot saying verification was unavailable. The web code had a 15-second API timeout and a generic error state. `16ff45c` extended the timeout and added a safe retry, but the owner reported Retry then showed the Telegram launch guidance. A direct download of `telegram.org/js/telegram-web-app.js` from the tested network timed out, confirming the external SDK host is unavailable here. The next web revision reads Telegram's signed launch fragment directly, with API verification unchanged. A fresh Telegram acceptance test is pending.
+- The initial Telegram Mini App test showed verification unavailable. `16ff45c` extended the API timeout and added a safe retry, but Retry then showed the Telegram launch guidance. A direct download of `telegram.org/js/telegram-web-app.js` from the tested network timed out, confirming the external SDK host was unavailable here. The subsequent web revision reads Telegram's signed launch fragment directly, with API verification unchanged.
+- Cloudflare build `1c1e56e3` then published the direct launch-fragment fix at `ffd5cc6`; Worker version `d672a993` was active at 100% traffic. A fake launch was rejected, direct browser access showed launch guidance, and the owner confirmed a fresh Telegram Mini App launch showed @techhubtz_support_bot and opened its editor. This is the owner acceptance for Phase 7.
 - The user bot remained active after the pause test. An observed `pong` arrived after reactivation, so that observation does not prove a reply while paused. Activation now drops queued Telegram updates to prevent replay on reactivation.
 
 ## Next gates
 
-1. Publish the direct launch-fragment web revision, then reopen the Mini App from a fresh `/dashboard` reply in @SautiLinkBaseBot. Confirm the owner sees @techhubtz_support_bot and opens its editor; if an error persists, record only the displayed safe error code, never a token or initData.
-2. If the Mini App asks for Base sign-in, sign in inside Telegram's WebView and confirm the owner-scoped dashboard. Test a second account separately before broad access.
-3. Review rate limits, monitoring, backup/restore, retention and recovery for ambiguous Telegram delivery before a wider release.
+1. Test a separate second Base account inside the Mini App before broad access. The owner path passed; the regular dashboard's second-account isolation was already checked.
+2. Review rate limits, monitoring, backup/restore, retention and recovery for ambiguous Telegram delivery before a wider release.
 
 See `docs/PHASE_7_MINIAPP.md`, `docs/PHASE_PROGRESS.md` and the Base operational runbooks. No BotFather menu button or Main Mini App setting was changed in this phase.
