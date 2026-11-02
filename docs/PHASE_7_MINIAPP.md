@@ -24,6 +24,6 @@ No BotFather menu button or Main Mini App setting is changed by this phase. Thos
 
 - GitHub CI #156 passed for `ffd5cc6`. Cloudflare published the direct launch-fragment implementation to the custom domain. An unsigned API POST returned 401; a fake launch fragment displayed the invalid-session state; a direct browser visit displayed Telegram launch guidance.
 - After opening a fresh `/dashboard` reply in @SautiLinkBaseBot, the owner confirmed @techhubtz_support_bot appeared inside the Telegram Mini App and its editor opened.
-- A second account has previously seen zero bots in the regular Base dashboard; a separate Mini App second-account session has not yet been observed. Keep the existing early-access restrictions while that and wider operational review remain open.
+- The owner subsequently reported signing in with the second Base account inside the Mini App and seeing zero bots. The owner/editor and second-account empty-list acceptance checks have passed by user observation. This does not constitute a new cross-account HTTP authorization test; keep the existing early-access restrictions while wider operational review remains open.
 
 References: [Telegram Mini Apps](https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app), [Telegram launch modes](https://core.telegram.org/bots/webapps#launching-mini-apps).

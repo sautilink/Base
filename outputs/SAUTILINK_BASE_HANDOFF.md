@@ -22,10 +22,10 @@
 - The initial Telegram Mini App test showed verification unavailable. `16ff45c` extended the API timeout and added a safe retry, but Retry then showed the Telegram launch guidance. A direct download of `telegram.org/js/telegram-web-app.js` from the tested network timed out, confirming the external SDK host was unavailable here. The subsequent web revision reads Telegram's signed launch fragment directly, with API verification unchanged.
 - Cloudflare build `1c1e56e3` then published the direct launch-fragment fix at `ffd5cc6`; Worker version `d672a993` was active at 100% traffic. A fake launch was rejected, direct browser access showed launch guidance, and the owner confirmed a fresh Telegram Mini App launch showed @techhubtz_support_bot and opened its editor. This is the owner acceptance for Phase 7.
 - The user bot remained active after the pause test. An observed `pong` arrived after reactivation, so that observation does not prove a reply while paused. Activation now drops queued Telegram updates to prevent replay on reactivation.
+- The user confirmed the second Base account inside the Mini App showed zero bots. Phase 7 owner/editor and second-account empty-list acceptance passed by user observation; this is not a new cross-account HTTP authorization probe.
 
 ## Next gates
 
-1. Test a separate second Base account inside the Mini App before broad access. The owner path passed; the regular dashboard's second-account isolation was already checked.
-2. Review rate limits, monitoring, backup/restore, retention and recovery for ambiguous Telegram delivery before a wider release.
+1. Review rate limits, monitoring, backup/restore, retention and recovery for ambiguous Telegram delivery before a wider release.
 
 See `docs/PHASE_7_MINIAPP.md`, `docs/PHASE_PROGRESS.md` and the Base operational runbooks. No BotFather menu button or Main Mini App setting was changed in this phase.
