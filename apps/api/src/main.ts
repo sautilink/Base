@@ -8,6 +8,7 @@ import { MasterWebhookController } from './master-webhook.controller';
 import { PublicConfigController } from './public-config.controller';
 import { UserBotLifecycleController } from './user-bot-lifecycle.controller';
 import { UserBotWebhookController } from './user-bot-webhook.controller';
+import { MiniAppController } from './miniapp.controller';
 import { pool } from './auth-db';
 import { registerMasterWebhook } from './master-registration';
 import { assertBotConnectConfigured, assertUserBotDeliveryConfigured } from './bot-connect-config';
@@ -179,7 +180,7 @@ class HealthController {
 
 @Module({ controllers: [
   HealthController, PublicConfigController, BotsController, BotConfigController,
-  MasterWebhookController, UserBotLifecycleController, UserBotWebhookController
+  MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController
 ] })
 class AppModule {}
 

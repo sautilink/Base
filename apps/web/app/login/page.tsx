@@ -1,16 +1,23 @@
 'use client';
 import { useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { getSupabase } from '../../lib/supabase';
 
 type AuthMode = 'password' | 'signup' | 'link';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<AuthMode>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+
+  function finishSignIn() {
+    if (new URLSearchParams(window.location.search).get('next') === '/miniapp') router.replace('/miniapp');
+    else window.location.assign('/dashboard');
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -23,7 +30,7 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.signInWithPassword({ email: address, password });
         if (error) throw error;
         if (!data.session) throw new Error('No session was created. Please try again.');
-        window.location.assign('/dashboard');
+        finishSignIn();
       } else if (mode === 'signup') {
         if (password !== confirmPassword) throw new Error('The passwords do not match.');
         const { data, error } = await supabase.auth.signUp({
@@ -32,7 +39,7 @@ export default function LoginPage() {
           options: { emailRedirectTo: window.location.origin + '/dashboard' }
         });
         if (error) throw error;
-        if (data.session) window.location.assign('/dashboard');
+        if (data.session) finishSignIn();
         else setMessage('Check your email to confirm your new account, then sign in with your password.');
       } else {
         const { error } = await supabase.auth.signInWithOtp({

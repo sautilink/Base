@@ -1,12 +1,14 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getSupabase, getBaseApiUrl, getPublicBaseConfig } from '../../lib/supabase';
 import BotEditor from './bot-editor';
 
 type Bot = { id: string; username: string; display_name: string; status: string };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [status, setStatus] = useState('Checking your session...');
   const [bots, setBots] = useState<Bot[]>([]);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
@@ -165,7 +167,8 @@ export default function DashboardPage() {
   async function signOut() {
     const supabase = await getSupabase();
     await supabase.auth.signOut();
-    window.location.href = '/login';
+    if (window.location.pathname === '/miniapp') router.replace('/login?next=/miniapp');
+    else window.location.href = '/login';
   }
 
   return <main className="dashboard-main"><section className="card dashboard-card">
@@ -176,7 +179,7 @@ export default function DashboardPage() {
       {authState === 'signed-in' && <button className="secondary" type="button" onClick={() => void signOut()}>Sign out</button>}
     </div>
     {status && <p role="status" className="notice">{status}</p>}
-    {authState === 'signed-out' && <Link href="/login">Sign in to continue</Link>}
+    {authState === 'signed-out' && <Link href={typeof window !== 'undefined' && window.location.pathname === '/miniapp' ? '/login?next=/miniapp' : '/login'}>Sign in to continue</Link>}
     {authState === 'error' && <button className="secondary" type="button" onClick={() => {
       setAuthState('loading');
       setStatus('Checking your session...');

@@ -2,6 +2,13 @@
 
 Source branch: `feat/phase-1-foundation`. PR #1 remains Draft. Cloudflare Production serves this branch at `base.sautilink.com` at the owner's request; `main` remains empty and the separate SautiLink App infrastructure is unchanged.
 
+## Phase 7: Telegram Mini App — 2026-11-02
+
+- Added a Telegram inline Mini App launch button to the Base master bot's private-chat replies, with the existing browser dashboard link retained.
+- Added `/miniapp` on the custom-domain web app. Raw Telegram `initData` is verified by the Base API with the master bot token, a bounded timestamp and duplicate-field rejection before the existing Base dashboard is shown. Telegram identity alone never grants account access; the user still signs in to Base with the existing Supabase account.
+- Added mobile safe-area styling, safe return from Base password login, and signature/tamper/expiry tests. Rollout and remaining live Telegram acceptance are in `docs/PHASE_7_MINIAPP.md`.
+- This section describes source changes. Confirm CI, exact Cloudflare Worker and Render API revisions, and a real Telegram launch before declaring it fully live.
+
 ## Phase 5: diagnostics, reliability and private retention — 2026-11-01
 
 - Draft [PR #4](https://github.com/sautilink/Base/pull/4) adds owner-only, read-only Telegram webhook health diagnostics, a dashboard warning when the active database status conflicts with Telegram webhook ownership, and a safe reminder to retry webhook cleanup for paused bots. It does not disclose Telegram URLs, errors, IPs, tokens or message contents.

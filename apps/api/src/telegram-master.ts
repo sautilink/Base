@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 
-export type MasterButton = { text: string; url: string };
+export type MasterButton = { text: string; url: string } | { text: string; web_app: { url: string } };
 export type MasterReply = { chatId: number; text: string; buttons?: MasterButton[] } | null;
 
 type TelegramUpdate = {
@@ -57,7 +57,10 @@ export function masterReply(body: unknown, dashboardUrl?: string): MasterReply {
 
   const dashboard = trustedDashboardLink(dashboardUrl);
   const buttons: MasterButton[] = [{ text: 'Create bot with BotFather', url: BOTFATHER_URL }];
-  if (dashboard) buttons.push({ text: 'Open SautiLink Base dashboard', url: dashboard });
+  if (dashboard) {
+    buttons.push({ text: 'Open SautiLink Base Mini App', web_app: { url: dashboard.replace(/\/dashboard$/, '/miniapp') } });
+    buttons.push({ text: 'Open browser dashboard', url: dashboard });
+  }
 
   switch (command.toLowerCase()) {
     case 'start':
@@ -106,7 +109,7 @@ export function masterReply(body: unknown, dashboardUrl?: string): MasterReply {
       };
     case 'dashboard':
       return dashboard
-        ? { chatId, text: 'Manage your bots securely using the SautiLink Base dashboard.', buttons: [{ text: 'Open dashboard', url: dashboard }] }
+        ? { chatId, text: 'Manage your bots securely in Telegram or your browser.', buttons: buttons.slice(1) }
         : { chatId, text: 'The SautiLink Base dashboard is being prepared. Please check back after launch.' };
     default:
       return null;
