@@ -13,6 +13,7 @@ export default function BroadcastCenter({botId,request,revision}:{botId:string;r
   const [busy,setBusy]=useState(false),[notice,setNotice]=useState('');
   const [title,setTitle]=useState(''),[contentId,setContentId]=useState(''),[editing,setEditing]=useState<string|null>(null);
   const [when,setWhen]=useState(''),[zone,setZone]=useState('local time'),[review,setReview]=useState<Review|null>(null);
+  const [cancelId,setCancelId]=useState<string|null>(null);
   const path='/bots/'+botId+'/broadcasts';
   async function load() {
     const [state,library]=await Promise.all([request<State>(path),request<{content:Content[]}>('/bots/'+botId+'/builder')]);
@@ -40,6 +41,10 @@ export default function BroadcastCenter({botId,request,revision}:{botId:string;r
   async function confirm() {if(!review)return;await work(async()=>{
     const result=await request<{total:number}>(path+'/'+review.campaignId+'/queue',{method:'POST',body:JSON.stringify({confirm:true,sendAt:review.sendAt,contentHash:review.contentHash,expectedRecipients:review.total})});
     setReview(null);setNotice('Broadcast queued for '+result.total+' subscribers. Follow delivery progress below.');
+  });}
+  async function cancel(campaignId:string) {await work(async()=>{
+    await request(path+'/'+campaignId+'/cancel',{method:'POST'});
+    setCancelId(null);setReview(null);setNotice('Broadcast cancelled.');
   });}
   const selected=contents.find(c=>c.id===contentId);
   return <section className="builder-section" aria-label="Broadcast Center">
@@ -76,7 +81,15 @@ export default function BroadcastCenter({botId,request,revision}:{botId:string;r
           <button type="button" className="secondary" disabled={busy} onClick={()=>{setEditing(c.id);setTitle(c.title);setContentId(c.content_id);setReview(null);}}>Edit draft</button>
           <button type="button" className="secondary" disabled={busy} onClick={()=>void preview(c,null)}>Preview / send now</button>
           <button type="button" className="secondary" disabled={busy||!when} onClick={()=>{const date=new Date(when);if(Number.isFinite(date.getTime()))void preview(c,date.toISOString());else setNotice('Choose a valid schedule time.');}}>Review schedule</button>
-        </>}{['draft','scheduled','sending'].includes(c.status)&&<button type="button" className="danger" disabled={busy} onClick={()=>{if(window.confirm('Cancel “'+c.title+'”? Unsent recipients will be skipped. A message already in flight may still arrive.'))void work(async()=>{await request(path+'/'+c.id+'/cancel',{method:'POST'});setReview(null);setNotice('Broadcast cancelled.');});}}>Cancel broadcast</button>}</div>
+        </>}{['draft','scheduled','sending'].includes(c.status)&&<button type="button" className="danger" disabled={busy} onClick={()=>{setCancelId(c.id);setReview(null);}}>Cancel broadcast</button>}</div>
+        {cancelId===c.id&&['draft','scheduled','sending'].includes(c.status)&&<section className="broadcast-review" aria-label={'Cancel '+c.title}>
+          <h4>Cancel “{c.title}”?</h4>
+          <p>Unsent recipients will be skipped. A message already in flight may still arrive. This campaign cannot be resumed after cancellation.</p>
+          <div className="inline-actions">
+            <button type="button" className="danger" disabled={busy} onClick={()=>void cancel(c.id)}>Confirm cancellation</button>
+            <button type="button" className="secondary" disabled={busy} autoFocus onClick={()=>setCancelId(null)}>Keep campaign</button>
+          </div>
+        </section>}
       </article>)}</div>
       <p className="notice">Accepted counts Telegram API acceptance, not proof that a person read the message. A paused bot waits for reactivation; cancel its campaign to stop it. Campaigns more than 24 hours overdue expire.</p>
     </>}
