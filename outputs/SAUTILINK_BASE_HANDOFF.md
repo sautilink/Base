@@ -1,6 +1,6 @@
 # SautiLink Base — release handoff
 
-**Checkpoint:** 2026-11-02. This file is safe for source control. Keep credentials, private account details and raw Telegram initData out of it.
+**Checkpoint:** 2026-11-03. This file is safe for source control. Keep credentials, private account details and raw Telegram initData out of it.
 
 ## Release boundary
 
@@ -10,7 +10,8 @@
 
 ## Current implementation
 
-- Phase 10 drafts/preview are live at `843f0b7`: CI #164 passed 104 API/six web tests and builds; Render `dep-dbkatmh42hec73f59rs0` exact SHA/ready and Cloudflare `5ea9f654` active 100% were confirmed. The Base-only migration, rolled-back lifecycle/grant tests and actual claim-query EXPLAIN passed. Owner browser draft/media review, Dar es Salaam time preview and persistence passed. One editable `Base broadcast demo` draft remains unqueued. Scheduler secret creation/activation requires action-time owner approval; no real broadcast has been sent. See `docs/PHASE_10_BROADCAST_CENTER.md` for exact resources, shared free-hour implications and activation sequence. New `/subscribe` captures an encrypted address; old Phase 9 opt-ins need to subscribe again. Confirmed current owner analytics: one visitor, three messages, zero subscribers after the earlier opt-out.
+- Phase 10 Broadcast Center and its one-minute scheduler are live. The owner explicitly approved a fresh dispatch secret on Base Worker Production and Base API staging, enabled broadcasts and deployment of both resources, including shared free-hour usage. Runtime fix `0da8486` uses Workers-compatible manual redirects and rejects redirects without forwarding the secret. CI #166 passed 104 API/seven web tests and builds; Render `dep-dbkk6d2jnfac7395sn8g` exact SHA/ready and Cloudflare `52dc81be` active 100% were confirmed. Consecutive cron events succeeded and the custom-domain dashboard showed Scheduler Connected. Unsigned dispatch returns 401. The stale web-release branding probe was also corrected. See `docs/PHASE_10_BROADCAST_CENTER.md` for evidence and limits.
+- One editable `Base broadcast demo` remains unqueued. No real broadcast has been sent or authorized by the scheduler-configuration approval. Next: a fresh real `/subscribe` to capture an encrypted destination, then a concrete owner-confirmed send/timed campaign and real Telegram acceptance. Current ready/subscribed counts are both zero after the earlier opt-out. Base migration, rolled-back lifecycle/grant tests, actual claim-query EXPLAIN, private media review, time preview and draft persistence have already passed.
 
 - Phase 9 audience analytics is live at code `28c16cd` (95 API tests, CI #161, Render `dep-dbka6pugekts73f6ue20` exact release/ready, Cloudflare `a3462741` active 100%). Both Base-only migrations and rolled-back DB/real-query isolation tests passed. Owner browser chart/table/simulator checks passed; no real subscriber or fixture was created by those checks. The owner subsequently confirmed real `/subscribe`, `/unsubscribe`, `/ping` replies all worked on @techhubtz_support_bot. Post-test dashboard counters were not independently rechecked in this acceptance update. See `docs/PHASE_9_AUDIENCE_ANALYTICS.md`; broadcast sending remains future work. Analytics uses HMAC pseudonyms, not stored chat IDs; future broadcasts require a separate consent-preserving encrypted destination design.
 

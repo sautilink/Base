@@ -5,8 +5,9 @@ Source branch: `feat/phase-1-foundation`. PR #1 remains Draft. Cloudflare Produc
 ## Phase 10: Broadcast Center and scheduling — 2026-11-02
 
 - Added owner drafts, saved-content/media preview, explicit final review, UTC scheduling, durable recipient queue, cancellation and progress counts. Delivery-ready destinations are captured encrypted only on a new `/subscribe` and cleared on `/unsubscribe`.
-- Local verification passed 104 API tests, six web tests, typechecks and a Next production build. Rolled-back Base database lifecycle/grant tests passed. Scheduler activation requires a dedicated server secret; no real broadcast has been sent by these tests. See `docs/PHASE_10_BROADCAST_CENTER.md` for bounds and rollout.
-- Drafts and preview are live at `843f0b7`: CI #164, Render exact SHA/ready and Cloudflare Worker `5ea9f654` at 100% passed. Owner browser draft persistence, private media review and local-time schedule review passed. A demo draft remains unqueued; sending/scheduling activation awaits dedicated-credential approval and a real campaign test.
+- Verification passed 104 API tests, seven web tests, typechecks and production builds. Rolled-back Base database lifecycle/grant tests passed. See `docs/PHASE_10_BROADCAST_CENTER.md` for bounds and rollout.
+- Draft persistence, private media review and local-time schedule review passed. On 2026-11-03 the owner approved the dedicated runtime secret and scheduler activation on the two Base resources. Runtime fix `0da8486` passed CI #166, Render exact SHA/ready and Cloudflare Worker `52dc81be` at 100%. Consecutive cron calls succeeded and the custom-domain dashboard showed Scheduler Connected. The release probe was corrected to recognize the current logo branding.
+- The demo draft remains unqueued and zero recipients are ready. A new real `/subscribe` and a concrete owner-confirmed campaign are the remaining Telegram broadcast acceptance gates; no real broadcast has been sent.
 
 ## Phase 9: Audience and subscription analytics — 2026-11-02
 
@@ -72,7 +73,7 @@ See `docs/DELIVERY_HEALTH.md` for staged rollout order.
 | Telegram Mini App | Inline master-bot launch, signed launch verification, owner editor and second-account empty list passed; separate Base Auth still gates bot data | Complete wider operational review before broad access |
 | Content and menus | Private media library, content commands, nested buttons/links, simulator and real Telegram image/menu delivery passed | Media quota/retention automation and wider operational review before broad access |
 | Audience analytics | Owner counts, 30-day chart/table and explicit preferences live on the custom domain; CI/browser/SQL checks passed; owner confirmed real Telegram subscribe/unsubscribe/ping replies | Monitor live usage; review retention and key rotation before broader access |
-| Broadcast and scheduling | Draft/review and local-time preview live; encrypted destinations and bounded durable dispatch implemented and tested | Dedicated scheduler credential activation awaits approval, followed by an explicitly confirmed real campaign |
+| Broadcast and scheduling | Draft/review, local-time preview and authenticated one-minute scheduler live; custom-domain dashboard shows Connected | Fresh real subscription followed by an explicitly confirmed campaign and Telegram acceptance |
 | Team access | Not implemented | Design roles and permissions |
 | Public web | Base web is live on the custom domain, and user-bot connection is limited to the two approved test accounts | Review security, monitoring, retention, backups and bot delivery before a broader release or PR merge |
 

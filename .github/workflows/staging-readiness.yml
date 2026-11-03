@@ -165,16 +165,16 @@ jobs:
               deployed=true
               break
             fi
-            echo "Phase 6 release not yet confirmed on canonical Base domain (attempt $attempt, HTTP $code)"
+            echo "Phase 10 release not yet confirmed on canonical Base domain (attempt $attempt, HTTP $code)"
             sleep 20
           done
           if [ "$deployed" != "true" ]; then
-            echo "::error::Base API may be healthy, but the Cloudflare production Worker is not yet serving Phase 6."
+            echo "::error::Base API may be healthy, but the Cloudflare production Worker is not yet serving Phase 10."
             echo "See Cloudflare Worker Build History and publish the exact staging revision."
             exit 1
           fi
-          # Verify the *exact* new Cloudflare Worker release, not only the
-          # unchanged copy that also existed on an earlier deployment.
+          # Verify the product-phase marker. Exact source publication is
+          # confirmed separately against Cloudflare's deployment revision.
           grep -q 'base-release' home.html
           grep -q 'phase-10-broadcast-center' home.html
           for path in login dashboard; do
@@ -182,7 +182,8 @@ jobs:
               --output page.html --write-out '%{http_code}' "$origin/$path")"
             echo "Base web /$path HTTP $status"
             test "$status" = "200"
-            grep -q 'SAUTILINK BASE' page.html
+            grep -qF 'aria-label="SautiLink Base"' page.html
+            grep -qF 'phase-10-broadcast-center' page.html
           done
           curl --silent --show-error --output /dev/null --dump-header live-cors.txt \
             --request OPTIONS --header "Origin: $origin" \
