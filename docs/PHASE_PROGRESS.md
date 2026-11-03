@@ -8,6 +8,7 @@ Source branch: `feat/phase-1-foundation`. PR #1 remains Draft. Cloudflare Produc
 - Verification passed 104 API tests, seven web tests, typechecks and production builds. Rolled-back Base database lifecycle/grant tests passed. See `docs/PHASE_10_BROADCAST_CENTER.md` for bounds and rollout.
 - Draft persistence, private media review and local-time schedule review passed. On 2026-11-03 the owner approved the dedicated runtime secret and scheduler activation on the two Base resources. Runtime fix `0da8486` passed CI #166, Render exact SHA/ready and Cloudflare Worker `52dc81be` at 100%. Consecutive cron calls succeeded and the custom-domain dashboard showed Scheduler Connected. The release probe was corrected to recognize the current logo branding.
 - A fresh subscription made one recipient ready; the separately approved real demo broadcast completed with accepted 1 and owner-confirmed image/caption receipt. A scheduled 05:35 campaign also completed with accepted 1 after its cancellation was blocked by native browser confirmation. Scheduling dispatch is verified; that campaign is not a cancellation pass. Cancellation now uses an explicit confirmation within the campaign card, with live verification recorded in the Phase 10 runbook.
+- The new confirmation fix `871f330` passed CI #168 and exact live API/Worker verification. `Keep campaign` left the draft intact. The 05:50 verification campaign was scheduled then successfully cancelled before dispatch: accepted 0, waiting 0, skipped 1, unknown 0. The pilot daily quota is now consumed; no further test send is authorized or needed today.
 
 ## Phase 9: Audience and subscription analytics — 2026-11-02
 
@@ -73,7 +74,7 @@ See `docs/DELIVERY_HEALTH.md` for staged rollout order.
 | Telegram Mini App | Inline master-bot launch, signed launch verification, owner editor and second-account empty list passed; separate Base Auth still gates bot data | Complete wider operational review before broad access |
 | Content and menus | Private media library, content commands, nested buttons/links, simulator and real Telegram image/menu delivery passed | Media quota/retention automation and wider operational review before broad access |
 | Audience analytics | Owner counts, 30-day chart/table and explicit preferences live on the custom domain; CI/browser/SQL checks passed; owner confirmed real Telegram subscribe/unsubscribe/ping replies | Monitor live usage; review retention and key rotation before broader access |
-| Broadcast and scheduling | Real one-recipient broadcast and owner receipt passed; scheduled queue dispatch passed; scheduler Connected | Verify cancellation using the new confirmation within the campaign card; preserve daily pilot limit |
+| Broadcast and scheduling | Real broadcast/owner receipt, scheduled dispatch and live cancellation passed; scheduler Connected | Operational monitoring, retention/key-rotation and wider-release review; preserve daily pilot limit |
 | Team access | Not implemented | Design roles and permissions |
 | Public web | Base web is live on the custom domain, and user-bot connection is limited to the two approved test accounts | Review security, monitoring, retention, backups and bot delivery before a broader release or PR merge |
 
