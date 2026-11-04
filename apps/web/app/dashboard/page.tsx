@@ -5,11 +5,17 @@ import { useRouter } from 'next/navigation';
 import { getSupabase, getBaseApiUrl, getPublicBaseConfig } from '../../lib/supabase';
 import BotEditor from './bot-editor';
 import Brand from '../brand';
+import {baseRequest} from '../../lib/base-request';
 
-type Bot = { id: string; username: string; display_name: string; status: string };
+type Bot = { id: string; username: string; display_name: string; status: string; role: string };
+type Invitation={id:string;role:string;username:string;display_name:string;expires_at:string};
+type Workspace={teamId:string;bots:Bot[];invitations:Invitation[]};
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [teamId,setTeamId]=useState(''),[invitations,setInvitations]=useState<Invitation[]>([]),[teamBusy,setTeamBusy]=useState(false);
+  async function refreshWorkspace(){const r=await baseRequest<Workspace>('/team/workspace');setTeamId(r.teamId);setBots(r.bots);setInvitations(r.invitations);setSelectedBotId(current=>r.bots.some(b=>b.id===current)?current:r.bots[0]?.id??null);setStatus('');}
+  async function answerInvitation(id:string,decision:'accept'|'decline'){setTeamBusy(true);try{await baseRequest('/team/invitations/'+id+'/'+decision,{method:'POST'});await refreshWorkspace();}catch(e){setStatus(e instanceof Error?e.message:'Unable to answer invitation.');}finally{setTeamBusy(false);}}
   const [status, setStatus] = useState('Checking your session...');
   const [bots, setBots] = useState<Bot[]>([]);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
@@ -54,16 +60,7 @@ export default function DashboardPage() {
           return;
         }
         setAuthState('signed-in');
-        const result = await supabase.from('base_bots')
-          .select('id,username,display_name,status')
-          .eq('owner_id', data.user.id).order('created_at', { ascending: false });
-        if (!active) return;
-        if (result.error) setStatus('Unable to load bots: ' + result.error.message);
-        else {
-          setBots(result.data ?? []);
-          setSelectedBotId(result.data?.[0]?.id ?? null);
-          setStatus('');
-        }
+        try {await refreshWorkspace();}catch {if(active)setStatus('Unable to load your bots. Use Refresh bots and invitations to retry.');}
         try {
           const publicConfig = await getPublicBaseConfig();
           if (active) {
@@ -108,13 +105,8 @@ export default function DashboardPage() {
       if (!response.ok) throw new Error(typeof result.message === 'string' ? result.message : 'Unable to connect bot.');
       setToken('');
       setConnectMessage('Bot added to your account. The token field was cleared for safety. Save a reply, then activate the bot if you are an approved tester.');
-      const refreshed = await supabase.from('base_bots')
-        .select('id,username,display_name,status')
-        .eq('owner_id', data.session.user.id).order('created_at', { ascending: false });
-      if (!refreshed.error) {
-        setBots(refreshed.data ?? []);
-        if (result.id) setSelectedBotId(result.id);
-      }
+      await refreshWorkspace();
+      if(result.id)setSelectedBotId(result.id);
     } catch (error) {
       setConnectMessage(error instanceof Error ? error.message : 'Connection failed.');
     } finally {
@@ -188,6 +180,12 @@ export default function DashboardPage() {
     }}>Retry session check</button>}
 
     {authState === 'signed-in' && <>
+      <section className="builder-section" aria-label="Team invitations"><h2>Your team workspace</h2>
+        <p>Share your Base team ID with a bot owner to receive an invitation. This ID is not a password and grants no access by itself.</p>
+        {teamId&&<><label htmlFor="my-team-id">Your Base team ID</label><input id="my-team-id" readOnly value={teamId}/></>}
+        <button type="button" className="secondary" disabled={teamBusy} onClick={()=>{setTeamBusy(true);void refreshWorkspace().catch(e=>setStatus(e.message)).finally(()=>setTeamBusy(false));}}>Refresh bots and invitations</button>
+        {invitations.map(i=><article className="broadcast-campaign" key={i.id}><h3>@{i.username}</h3><p>Invitation to join as <strong>{i.role}</strong> · expires {new Date(i.expires_at).toLocaleDateString()}</p><p>Viewer can read. Editor can edit content. Admin can also manage broadcasts and delivery.</p><div className="inline-actions"><button type="button" disabled={teamBusy} onClick={()=>void answerInvitation(i.id,'accept')}>Accept invitation</button><button type="button" className="secondary" disabled={teamBusy} onClick={()=>void answerInvitation(i.id,'decline')}>Decline</button></div></article>)}
+      </section>
       <section className="builder-section">
         <h2>Connect a Telegram bot</h2>
         <p>Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">BotFather</a>, then connect it here. Bot tokens are secrets; only paste one into this secure form, never in chat or GitHub.</p>
@@ -210,11 +208,11 @@ export default function DashboardPage() {
 
       <section className="builder-section">
         <h2>Connected bots <span className="bot-count">{bots.length}</span></h2>
-        {bots.length === 0 && <p>No bots connected yet. Create a bot with BotFather to get started.</p>}
+        {bots.length === 0 && <p>No bots connected yet. Connect your own bot or accept a team invitation.</p>}
         {bots.map(bot => <button className={'bot-select' + (selectedBotId === bot.id ? ' chosen' : '')}
           key={bot.id} type="button" onClick={() => setSelectedBotId(bot.id)}>
           <span><strong>{bot.display_name || bot.username}</strong><small>@{bot.username}</small></span>
-          <span className="pill">{bot.status}</span>
+          <span className="pill">{bot.role} · {bot.status}</span>
         </button>)}
       </section>
 
@@ -234,7 +232,7 @@ export default function DashboardPage() {
       </section>
 
       {selectedBotId && apiUrl && <BotEditor key={selectedBotId} botId={selectedBotId} apiUrl={apiUrl}
-        deliveryEnabled={userBotDeliveryEnabled}
+        deliveryEnabled={userBotDeliveryEnabled} onWorkspaceChange={()=>{void refreshWorkspace().catch(e=>setStatus(e.message));}}
         onStatusChange={newStatus => setBots(current => current.map(bot =>
           bot.id === selectedBotId ? { ...bot, status: newStatus } : bot))} />}
       <p className="dashboard-footer">Need help getting started? Visit <a href="https://t.me/SautiLinkBaseBot" target="_blank" rel="noreferrer">@SautiLinkBaseBot</a> for guidance.</p>

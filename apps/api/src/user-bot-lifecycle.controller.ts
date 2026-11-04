@@ -2,7 +2,8 @@ import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Header, Headers, HttpException, HttpStatus,
   NotFoundException, Param, Post
 } from '@nestjs/common';
-import { pool, verifiedUserId } from './auth-db';
+import { pool } from './auth-db';
+import { botAccess, type BotPermission } from './bot-access';
 import { validUuid } from './bot-config';
 import { botConnectTestOwners } from './bot-connect-config';
 import { enforceBotConnectRateLimit } from './connect-rate-limit';
@@ -24,8 +25,8 @@ function deliveryEnabled(): void {
   }
 }
 
-async function ownedBot(botId: string, authorization: string | undefined): Promise<{ ownerId: string; bot: BotRow }> {
-  const ownerId = await verifiedUserId(authorization);
+async function ownedBot(botId: string, authorization: string | undefined, permission:BotPermission='operate'): Promise<{ ownerId: string; bot: BotRow }> {
+  const ownerId = (await botAccess(authorization,botId,permission)).owner_id;
   if (!botConnectTestOwners(process.env).has(ownerId.toLowerCase())) {
     throw new ForbiddenException('Bot activation is limited to approved test accounts');
   }
@@ -44,7 +45,7 @@ export class UserBotLifecycleController {
   @Header('Cache-Control', 'no-store')
   async deliveryHealth(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
     deliveryEnabled();
-    const { ownerId, bot } = await ownedBot(botId, authorization);
+    const { ownerId, bot } = await ownedBot(botId, authorization, 'read');
     try {
       return await ownerDeliveryHealth(bot.id, ownerId);
     } catch {
@@ -57,7 +58,7 @@ export class UserBotLifecycleController {
   @Header('Cache-Control', 'no-store')
   async webhookHealth(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
     deliveryEnabled();
-    const { ownerId, bot } = await ownedBot(botId, authorization);
+    const { ownerId, bot } = await ownedBot(botId, authorization, 'read');
     const cached = readWebhookHealthCache(bot.id);
     if (cached) return cached;
     let token: string;
@@ -135,7 +136,7 @@ export class UserBotLifecycleController {
     @Body() body: unknown
   ) {
     deliveryEnabled();
-    const { ownerId, bot } = await ownedBot(botId, authorization);
+    const { ownerId, bot } = await ownedBot(botId, authorization, 'credential');
     if (bot.status !== 'inactive') {
       throw new ConflictException('Pause this bot before replacing its BotFather token');
     }

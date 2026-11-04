@@ -5,10 +5,12 @@ import { getSupabase } from '../../lib/supabase';
 import ContentManager from './content-manager';
 import AudienceAnalytics from './audience-analytics';
 import BroadcastCenter from './broadcast-center';
+import TeamManager from './team-manager';
 
 type Command = { id: string; command: string; response_text: string; content_id?: string|null };
 type Rule = { id: string; keyword: string; response_text: string; enabled: boolean };
 type Config = {
+  role: string; ownerId:string;
   bot: { id: string; username: string; display_name: string; status: string; welcome_message: string };
   commands: Command[];
   rules: Rule[];
@@ -33,8 +35,8 @@ function describeError(value: ErrorResponse, status: number): string {
   return 'Request failed (' + status + ').';
 }
 
-export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChange }: {
-  botId: string; apiUrl: string; deliveryEnabled: boolean; onStatusChange: (status: string) => void
+export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChange, onWorkspaceChange }: {
+  botId: string; apiUrl: string; deliveryEnabled: boolean; onWorkspaceChange:()=>void; onStatusChange: (status: string) => void
 }) {
   const [config, setConfig] = useState<Config | null>(null);
   const [notice, setNotice] = useState('Loading bot settings...');
@@ -253,6 +255,8 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
   }
 
   const active = config?.bot.status === 'active';
+  const canEdit=!!config&&['owner','admin','editor'].includes(config.role);
+  const canOperate=!!config&&['owner','admin'].includes(config.role);
   const hasResponse = !!config && (
     !!config.bot.welcome_message.trim() ||
     !!config.menus?.length ||
@@ -272,10 +276,11 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
     </header>
     {notice && <p className="notice" role="status">{notice}</p>}
     {!config ? null : <>
+      <TeamManager botId={botId} role={config.role} onLeft={onWorkspaceChange}/>
       <AudienceAnalytics botId={botId} request={request}/>
-      <BroadcastCenter botId={botId} request={request} revision={config}/>
-      <ContentManager botId={botId} request={request} onChanged={refresh}/>
-      <div className="builder-section">
+      <BroadcastCenter botId={botId} request={request} revision={config} readOnly={!canOperate}/>
+      <ContentManager botId={botId} request={request} onChanged={refresh} ownerId={config.ownerId} readOnly={!canEdit} canOperate={canOperate}/>
+      <fieldset className="builder-section role-controls" disabled={!canOperate}>
         <h3>Telegram delivery</h3>
         {active ? <>
             <p>Your configured replies are being delivered in private chats. Pause to stop new replies.</p>
@@ -295,8 +300,8 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
               {cleanupPending ? 'Retry webhook cleanup' : 'Verify webhook cleanup'}
             </button>
           </>}
-      </div>
-      {deliveryEnabled && !active && <form className="builder-section" onSubmit={event => void rotateToken(event)}>
+      </fieldset>
+      {config.role==='owner' && deliveryEnabled && !active && <form className="builder-section" onSubmit={event => void rotateToken(event)}>
         <h3>Replace BotFather token</h3>
         <p>Use this only after regenerating this same bot's token in BotFather. The bot must remain paused; its Telegram bot identity is verified before the encrypted credential is replaced. This never activates the bot automatically.</p>
         <label htmlFor="replacement-token">New BotFather token</label>
@@ -354,14 +359,14 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
           <p className="notice">Processing updates (7d): {deliveryHealth.processing7d}. Last update within seven days: {deliveryHealth.lastUpdateAt ? new Date(deliveryHealth.lastUpdateAt).toLocaleString() : 'None'}.</p>
         </>}
       </section>}
-      <form className="builder-section" onSubmit={event => void saveWelcome(event)}>
+      <fieldset className="role-controls" disabled={!canEdit}><form className="builder-section" onSubmit={event => void saveWelcome(event)}>
         <h3>Welcome message</h3>
         <p>Text to send when someone starts your bot.</p>
         <label htmlFor="welcome-message">Message (up to 4,000 characters)</label>
         <textarea id="welcome-message" maxLength={4000} rows={3}
           value={welcome} onChange={event => setWelcome(event.target.value)} />
         <button type="submit" disabled={busy}>{busy ? 'Saving...' : 'Save welcome message'}</button>
-      </form>
+      </form></fieldset>
 
       <form className="builder-section" onSubmit={event => void simulate(event)}>
         <h3>Try your bot (simulation)</h3>
@@ -380,7 +385,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
         </div>}
       </form>
 
-      <div className="builder-section">
+      <fieldset className="role-controls" disabled={!canEdit}><div className="builder-section">
         <h3>Bot commands</h3>
         <p>Save a response to a command such as /help.</p>
         {config.commands.map(item => <div className="config-row" key={item.id}>
@@ -456,7 +461,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
               onClick={() => { setEditingRule(null); setKeyword(''); setRuleResponse(''); setRuleEnabled(true); }}>Cancel</button>}
           </div>
         </form>
-      </div>
+      </div></fieldset>
     </>}
   </section>;
 }

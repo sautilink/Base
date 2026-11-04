@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { Controller, Get, Header, Module, ServiceUnavailableException } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { TeamController } from './team.controller';
 import { BotsController } from './bots.controller';
 import { BotConfigController } from './bot-config.controller';
 import { MasterWebhookController } from './master-webhook.controller';
@@ -107,6 +108,13 @@ class HealthController {
         (select bool_and(not has_table_privilege(r,t,'SELECT')) from unnest(array['anon','authenticated','service_role']) r
           cross join unnest(array['base_private.broadcast_campaigns','base_private.broadcast_recipients','base_private.broadcast_scheduler']) t) as ready`);
       if(!broadcasts.rows[0]?.ready)throw new Error('Broadcast permissions unavailable');
+      const team=await db.query<{ready:boolean}>(`select
+        (select bool_and(has_table_privilege(current_user,'public.base_bot_members',p)) from unnest(array['SELECT','INSERT','UPDATE']) p) and
+        (select bool_and(has_table_privilege(current_user,'base_private.bot_team_events',p)) from unnest(array['SELECT','INSERT']) p) and
+        not has_table_privilege('authenticated','public.base_bot_members','INSERT,UPDATE,DELETE') and
+        not has_table_privilege('anon','public.base_bot_members','SELECT') and
+        not has_table_privilege('authenticated','base_private.bot_team_events','SELECT') as ready`);
+      if(!team.rows[0]?.ready)throw new Error('Team permissions unavailable');
       phase = 'permissions';
       const connectionPermissionsOk = state?.bot_insert && state.credential_insert &&
         state.account_quota_read && state.account_quota_write && state.audit_read;
@@ -201,7 +209,7 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [
+@Module({ controllers: [TeamController,
   HealthController, PublicConfigController, BotsController, BotConfigController,
   MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController, ContentController, AudienceController, BroadcastController, BroadcastDispatchController
 ] })

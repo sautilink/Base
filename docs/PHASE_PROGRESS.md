@@ -75,7 +75,7 @@ See `docs/DELIVERY_HEALTH.md` for staged rollout order.
 | Content and menus | Private media library, content commands, nested buttons/links, simulator and real Telegram image/menu delivery passed | Media quota/retention automation and wider operational review before broad access |
 | Audience analytics | Owner counts, 30-day chart/table and explicit preferences live on the custom domain; CI/browser/SQL checks passed; owner confirmed real Telegram subscribe/unsubscribe/ping replies | Monitor live usage; review retention and key rotation before broader access |
 | Broadcast and scheduling | Real broadcast/owner receipt, scheduled dispatch and live cancellation passed; scheduler Connected | Operational monitoring, retention/key-rotation and wider-release review; preserve daily pilot limit |
-| Team access | Not implemented | Design roles and permissions |
+| Team access | Phase 11 implemented: per-bot invitations, Owner/Admin/Editor/Viewer roles, revocation and private team history; local and transactional DB tests passed | Verify exact deployment and real two-account acceptance |
 | Public web | Base web is live on the custom domain, and user-bot connection is limited to the two approved test accounts | Review security, monitoring, retention, backups and bot delivery before a broader release or PR merge |
 
 The Base platform is free for users, with fair-use protections. Never put BotFather tokens, database credentials, service-role keys, or webhook secrets in chat, GitHub, frontend bundles or public API responses. See `docs/PHASE_2_MASTER_BOT.md` and `docs/API_DEPLOYMENT.md` for the current staging runbooks.

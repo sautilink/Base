@@ -8,7 +8,7 @@ type State={campaigns:Campaign[];eligible:number;subscribers:number;enabled:bool
 type Review={campaignId:string;content:Content;contentHash:string;total:number;sendAt:string|null;mediaUrl:string};
 type Request=<T>(path:string,init?:RequestInit)=>Promise<T>;
 
-export default function BroadcastCenter({botId,request,revision}:{botId:string;request:Request;revision:unknown}) {
+export default function BroadcastCenter({botId,request,revision,readOnly}:{botId:string;request:Request;revision:unknown;readOnly:boolean}) {
   const [data,setData]=useState<State|null>(null),[contents,setContents]=useState<Content[]>([]);
   const [busy,setBusy]=useState(false),[notice,setNotice]=useState('');
   const [title,setTitle]=useState(''),[contentId,setContentId]=useState(''),[editing,setEditing]=useState<string|null>(null);
@@ -56,7 +56,7 @@ export default function BroadcastCenter({botId,request,revision}:{botId:string;r
       <div className="delivery-health-grid"><div><strong>{data.eligible}</strong><small>Ready to receive broadcasts</small></div><div><strong>{data.subscribers}</strong><small>Subscribed to updates</small></div><div><strong>{data.schedulerReady?'Connected':'Unavailable'}</strong><small>Scheduler</small></div></div>
       {!data.schedulerReady&&<p className="notice">Sending and scheduling are unavailable until the scheduler connects. You can save and preview drafts now.</p>}
       <p className="notice">Visitors must send <code>/subscribe</code> after this update to be ready for broadcasts. <code>/unsubscribe</code> removes their delivery destination. Pilot limits: 200 recipients, one active campaign and three broadcasts per bot per day.</p>
-      <form onSubmit={save} className="broadcast-draft"><h4>{editing?'Edit draft':'Create a broadcast draft'}</h4>
+      {!readOnly&&<><form onSubmit={save} className="broadcast-draft"><h4>{editing?'Edit draft':'Create a broadcast draft'}</h4>
         <label htmlFor="broadcast-title">Campaign name</label><input id="broadcast-title" maxLength={100} required value={title} onChange={e=>setTitle(e.target.value)} placeholder="Weekly update"/>
         <label htmlFor="broadcast-content">Saved content</label><select id="broadcast-content" required value={contentId} onChange={e=>setContentId(e.target.value)}><option value="">Choose content</option>{contents.map(c=><option key={c.id} value={c.id}>{c.title} · {c.kind}</option>)}</select>
         {!contents.length&&<p className="notice">Create content in Content Manager below, then refresh broadcasts.</p>}
@@ -71,18 +71,19 @@ export default function BroadcastCenter({botId,request,revision}:{botId:string;r
         </div><p className="notice">Content and audience are checked again when you confirm. Opt-outs are checked before each delivery. A Telegram request already in progress cannot be recalled.</p>
         <div className="inline-actions"><button type="button" disabled={busy||!data.schedulerReady||review.total<1||review.total>200} onClick={()=>void confirm()}>{review.sendAt?'Confirm schedule':'Confirm send now'}</button><button className="secondary" type="button" onClick={()=>setReview(null)}>Close review</button></div>
       </section>}
+      </>}
       {!data.campaigns.length&&<p className="notice">No broadcasts yet. Your first draft will appear here.</p>}
       <div className="broadcast-history">{data.campaigns.map(c=><article className="broadcast-campaign" key={c.id}>
         <div className="delivery-health-heading"><strong>{c.title}</strong><span className="pill">{c.status}</span></div>
         {c.scheduled_at&&<p className="notice">Scheduled: {new Date(c.scheduled_at).toLocaleString()} · {zone}</p>}
         {c.status!=='draft'&&<p className="notice">Audience {c.total} · Accepted {c.sent} · Waiting {c.remaining} · Skipped {c.skipped} · Unknown {c.unknown}</p>}
         {c.unknown>0&&<p className="notice" role="alert">Some outcomes are unknown. Telegram may have accepted them; Base will not resend those recipients automatically.</p>}
-        <div className="inline-actions">{c.status==='draft'&&<>
+        <div className="inline-actions">{!readOnly&&c.status==='draft'&&<>
           <button type="button" className="secondary" disabled={busy} onClick={()=>{setEditing(c.id);setTitle(c.title);setContentId(c.content_id);setReview(null);}}>Edit draft</button>
           <button type="button" className="secondary" disabled={busy} onClick={()=>void preview(c,null)}>Preview / send now</button>
           <button type="button" className="secondary" disabled={busy||!when} onClick={()=>{const date=new Date(when);if(Number.isFinite(date.getTime()))void preview(c,date.toISOString());else setNotice('Choose a valid schedule time.');}}>Review schedule</button>
-        </>}{['draft','scheduled','sending'].includes(c.status)&&<button type="button" className="danger" disabled={busy} onClick={()=>{setCancelId(c.id);setReview(null);}}>Cancel broadcast</button>}</div>
-        {cancelId===c.id&&['draft','scheduled','sending'].includes(c.status)&&<section className="broadcast-review" aria-label={'Cancel '+c.title}>
+        </>}{!readOnly&&['draft','scheduled','sending'].includes(c.status)&&<button type="button" className="danger" disabled={busy} onClick={()=>{setCancelId(c.id);setReview(null);}}>Cancel broadcast</button>}</div>
+        {!readOnly&&cancelId===c.id&&['draft','scheduled','sending'].includes(c.status)&&<section className="broadcast-review" aria-label={'Cancel '+c.title}>
           <h4>Cancel “{c.title}”?</h4>
           <p>Unsent recipients will be skipped. A message already in flight may still arrive. This campaign cannot be resumed after cancellation.</p>
           <div className="inline-actions">

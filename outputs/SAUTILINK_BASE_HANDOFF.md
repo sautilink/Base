@@ -1,5 +1,12 @@
 # SautiLink Base — release handoff
 
+## Phase 11 implementation — 2026-11-04
+
+- Per-bot Owner/Admin/Editor/Viewer access, invitations addressed to the recipient Base team ID, accept/decline/leave, owner revocation and role changes, append-only team history, shared web/Mini App controls and membership-aware private media RLS are implemented. Existing two-account pilot limits stay in force. No real membership or invitation has been created.
+- 108 API tests, 7 web tests, typechecks and production Next build passed. Transactional Base database RLS tests passed. Additive migration `20261103160820_base_bot_teams` was applied with explicit user approval after automatic review requested confirmation; schema history recorded and membership/event tables empty.
+- Live rollout and real two-account acceptance are still pending. See `docs/PHASE_11_BOT_TEAMS.md`; never confuse implementation or SQL tests with actual user acceptance.
+
+
 **Checkpoint:** 2026-11-03. This file is safe for source control. Keep credentials, private account details and raw Telegram initData out of it.
 
 ## Release boundary

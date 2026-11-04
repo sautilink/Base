@@ -1,5 +1,6 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Header, Headers, NotFoundException, Param, Patch, Post, Delete } from '@nestjs/common';
-import { pool, verifiedUserId } from './auth-db';
+import { pool } from './auth-db';
+import { botAccess, type BotPermission } from './bot-access';
 import { InvalidBotConfig, validUuid } from './bot-config';
 import { field, parseContent, parseMenu } from './content-config';
 import {activeBotToken} from './user-bot-credential';
@@ -11,7 +12,7 @@ import {enforceBotConnectRateLimit} from './connect-rate-limit';
 export class ContentController {
   @Post('enable-menus')
   async enableMenus(@Headers('authorization') auth:string|undefined,@Param('botId') botId:string) {
-    const owner=await this.owner(auth,botId);
+    const owner=await this.owner(auth,botId,'operate');
     if(!botConnectTestOwners(process.env).has(owner.toLowerCase()))throw new ForbiddenException('Delivery is limited to approved test accounts');
     await enforceBotConnectRateLimit(owner);
     if(process.env.USER_BOT_DELIVERY_ENABLED!=='true')throw new BadRequestException('Delivery is disabled');
@@ -20,18 +21,15 @@ export class ContentController {
     await registerUserBotWebhook(token,botId,userBotWebhookSecret(botId,process.env.USER_BOT_WEBHOOK_SECRET_KEY),fetch,false);
     return {enabled:true};
   }
-  private async owner(auth: string | undefined, botId: string) {
-    const owner = await verifiedUserId(auth);
-    if (!validUuid(botId)) throw new BadRequestException('Invalid bot ID');
-    if (!(await pool().query('select id from public.base_bots where id=$1 and owner_id=$2',[botId,owner])).rowCount) throw new NotFoundException();
-    return owner;
+  private async owner(auth: string | undefined, botId: string, permission:BotPermission='edit') {
+    return (await botAccess(auth,botId,permission)).owner_id;
   }
   private id(id: string) { if (!validUuid(id)) throw new BadRequestException('Invalid item ID'); return id; }
   private parse<T>(fn:()=>T): T { try {return fn();} catch(e) {if(e instanceof InvalidBotConfig) throw new BadRequestException(e.message); throw e;} }
   @Get()
   @Header('Cache-Control', 'no-store')
   async list(@Headers('authorization') auth: string | undefined, @Param('botId') botId: string) {
-    await this.owner(auth,botId);
+    await this.owner(auth,botId,'read');
     const [content,menus]=await Promise.all([
       pool().query('select id,title,kind,body,storage_path,archived from public.base_content_items where bot_id=$1 order by created_at desc limit 200',[botId]),
       pool().query('select id,parent_id,title,response_text,content_id,url,position from public.base_menu_items where bot_id=$1 order by position,id limit 100',[botId])

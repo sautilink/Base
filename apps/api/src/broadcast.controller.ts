@@ -1,5 +1,6 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Header, Headers, NotFoundException, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
-import { pool, verifiedUserId } from './auth-db';
+import { pool } from './auth-db';
+import { botAccess, type BotPermission } from './bot-access';
 import { InvalidBotConfig, validUuid } from './bot-config';
 import { broadcastEnabled, contentFingerprint, parseBroadcast, parseBroadcastReview, parseBroadcastSchedule, verifyDispatchKey } from './broadcast-config';
 import { botConnectTestOwners } from './bot-connect-config';
@@ -14,15 +15,13 @@ function id(value:string):string {if(!validUuid(value))throw new BadRequestExcep
 
 @Controller('bots/:botId/broadcasts')
 export class BroadcastController {
-  private async owner(auth:string|undefined,botId:string) {
-    const owner=await verifiedUserId(auth);id(botId);
-    if (!(await pool().query('select 1 from public.base_bots where id=$1 and owner_id=$2',[botId,owner])).rowCount) throw new NotFoundException('Bot not found');
-    return owner;
+  private async owner(auth:string|undefined,botId:string,permission:BotPermission='operate') {
+    return (await botAccess(auth,botId,permission)).owner_id;
   }
   @Get()
   @Header('Cache-Control','no-store')
   async list(@Headers('authorization') auth:string|undefined,@Param('botId') botId:string) {
-    const owner=await this.owner(auth,botId);
+    const owner=await this.owner(auth,botId,'read');
     const [campaigns,audience,heartbeat]=await Promise.all([
       pool().query(`select c.id,c.title,c.content_id,c.content_snapshot as preview,c.status,c.scheduled_at,c.created_at,
         (select count(*)::int from base_private.broadcast_recipients r where r.campaign_id=c.id) as total,
@@ -99,7 +98,7 @@ export class BroadcastController {
   @Get(':campaignId/preview')
   @Header('Cache-Control','no-store')
   async preview(@Headers('authorization') auth:string|undefined,@Param('botId') botId:string,@Param('campaignId') campaignId:string) {
-    const owner=await this.owner(auth,botId);id(campaignId);
+    const owner=await this.owner(auth,botId,'read');id(campaignId);
     const result=await pool().query<Content>(`select i.id,i.title,i.kind,i.body,i.storage_path,i.archived from public.base_content_items i
       join base_private.broadcast_campaigns c on c.content_id=i.id and c.bot_id=i.bot_id
       where c.id=$3 and c.bot_id=$1 and c.owner_id=$2 and c.status='draft' and not i.archived`,[botId,owner,campaignId]);

@@ -2,7 +2,8 @@ import {
   BadRequestException, Body, ConflictException, Controller, Delete, Get, Headers,
   NotFoundException, Param, Patch, Post
 } from '@nestjs/common';
-import { pool, verifiedUserId } from './auth-db';
+import { pool } from './auth-db';
+import { botAccess } from './bot-access';
 import {
   InvalidBotConfig, parseCommand, parseEnabled, parseReplyRule, parseWelcome, validUuid
 } from './bot-config';
@@ -36,11 +37,12 @@ function databaseError(error: unknown): never {
 
 @Controller('bots')
 export class BotConfigController {
-  // SELECT verifies bot ownership before reading commands/rules. The API's
+  // Active team membership is checked before reading commands/rules. The API's
   // server DB role is privileged, so never rely on the browser's Supabase RLS.
   @Get(':botId/config')
   async config(@Headers('authorization') authorization: string | undefined, @Param('botId') botId: string) {
-    const ownerId = await verifiedUserId(authorization);
+    const access = await botAccess(authorization,botId,'read');
+    const ownerId = access.owner_id;
     requireId(botId);
     const bot = await pool().query<{ id: string; username: string; display_name: string; status: string; welcome_message: string }>(
       'select id, username, display_name, status, welcome_message from public.base_bots where id=$1 and owner_id=$2',
@@ -57,15 +59,16 @@ export class BotConfigController {
         [botId]
       )
     ]);
-    return { bot: bot.rows[0], commands: commands.rows, rules: rules.rows, menus:(await loadBuilder(botId)).menus };
+    return { role:access.role, ownerId:access.owner_id, bot: bot.rows[0], commands: commands.rows, rules: rules.rows, menus:(await loadBuilder(botId)).menus };
   }
 
   // Read-only simulator. It never calls Telegram or stores messages.
-  // It is deliberately owner-scoped and cannot inspect another user's bot.
+  // Access is scoped to the selected bot and a current read permission.
   @Post(':botId/simulate')
   async simulate(@Headers('authorization') authorization: string | undefined,
     @Param('botId') botId: string, @Body() body: unknown) {
-    const ownerId = await verifiedUserId(authorization);
+    const access = await botAccess(authorization,botId,'read');
+    const ownerId = access.owner_id;
     requireId(botId);
     if (!body || typeof body !== 'object' || Array.isArray(body) ||
         typeof (body as { message?: unknown }).message !== 'string') {
@@ -107,7 +110,8 @@ export class BotConfigController {
   @Patch(':botId/welcome')
   async welcome(@Headers('authorization') authorization: string | undefined,
     @Param('botId') botId: string, @Body() body: unknown) {
-    const ownerId = await verifiedUserId(authorization);
+    const access = await botAccess(authorization,botId,'edit');
+    const ownerId = access.owner_id;
     requireId(botId);
     const message = validate(() => parseWelcome(body));
     const result = await pool().query<{ welcome_message: string }>(
@@ -120,7 +124,8 @@ export class BotConfigController {
   @Post(':botId/commands')
   async createCommand(@Headers('authorization') authorization: string | undefined,
     @Param('botId') botId: string, @Body() body: unknown) {
-    const ownerId = await verifiedUserId(authorization);
+    const access = await botAccess(authorization,botId,'edit');
+    const ownerId = access.owner_id;
     requireId(botId);
     const data = validate(() => parseCommand(body));
     try {
@@ -137,7 +142,8 @@ export class BotConfigController {
   @Patch(':botId/commands/:itemId')
   async updateCommand(@Headers('authorization') authorization: string | undefined,
     @Param('botId') botId: string, @Param('itemId') itemId: string, @Body() body: unknown) {
-    const ownerId = await verifiedUserId(authorization);
+    const access = await botAccess(authorization,botId,'edit');
+    const ownerId = access.owner_id;
     requireId(botId); requireId(itemId);
     const data = validate(() => parseCommand(body));
     try {
@@ -155,7 +161,8 @@ export class BotConfigController {
   @Delete(':botId/commands/:itemId')
   async removeCommand(@Headers('authorization') authorization: string | undefined,
     @Param('botId') botId: string, @Param('itemId') itemId: string) {
-    const ownerId = await verifiedUserId(authorization);
+    const access = await botAccess(authorization,botId,'edit');
+    const ownerId = access.owner_id;
     requireId(botId); requireId(itemId);
     const result = await pool().query<{ id: string }>(
       `delete from public.base_commands
@@ -171,7 +178,8 @@ export class BotConfigController {
   @Post(':botId/rules')
   async createRule(@Headers('authorization') authorization: string | undefined,
     @Param('botId') botId: string, @Body() body: unknown) {
-    const ownerId = await verifiedUserId(authorization);
+    const access = await botAccess(authorization,botId,'edit');
+    const ownerId = access.owner_id;
     requireId(botId);
     const data = validate(() => parseReplyRule(body));
     try {
@@ -188,7 +196,8 @@ export class BotConfigController {
   @Patch(':botId/rules/:itemId')
   async updateRule(@Headers('authorization') authorization: string | undefined,
     @Param('botId') botId: string, @Param('itemId') itemId: string, @Body() body: unknown) {
-    const ownerId = await verifiedUserId(authorization);
+    const access = await botAccess(authorization,botId,'edit');
+    const ownerId = access.owner_id;
     requireId(botId); requireId(itemId);
     const data = validate(() => parseReplyRule(body));
     try {
@@ -206,7 +215,8 @@ export class BotConfigController {
   @Patch(':botId/rules/:itemId/toggle')
   async toggleRule(@Headers('authorization') authorization: string | undefined,
     @Param('botId') botId: string, @Param('itemId') itemId: string, @Body() body: unknown) {
-    const ownerId = await verifiedUserId(authorization);
+    const access = await botAccess(authorization,botId,'edit');
+    const ownerId = access.owner_id;
     requireId(botId); requireId(itemId);
     const enabled = validate(() => parseEnabled(body));
     const result = await pool().query<{ id: string; enabled: boolean }>(
@@ -222,7 +232,8 @@ export class BotConfigController {
   @Delete(':botId/rules/:itemId')
   async removeRule(@Headers('authorization') authorization: string | undefined,
     @Param('botId') botId: string, @Param('itemId') itemId: string) {
-    const ownerId = await verifiedUserId(authorization);
+    const access = await botAccess(authorization,botId,'edit');
+    const ownerId = access.owner_id;
     requireId(botId); requireId(itemId);
     const result = await pool().query<{ id: string }>(
       `delete from public.base_reply_rules where id=$3 and bot_id=$1 and exists

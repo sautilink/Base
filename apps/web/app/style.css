@@ -120,3 +120,6 @@ button.danger{background:#fff0f1;color:#ba283c}
 .broadcast-review{border:2px solid #9cc1ff;background:#f1f6ff;border-radius:18px;padding:20px;margin:20px 0}
 .broadcast-history{display:grid;gap:12px;margin-top:24px}
 .broadcast-campaign{border:1px solid #e1e8f2;background:#fff;border-radius:16px;padding:18px}
+
+.role-controls { border:0; padding:0; margin:0; min-width:0; }
+.role-controls:disabled button { opacity:.45; cursor:not-allowed; }
