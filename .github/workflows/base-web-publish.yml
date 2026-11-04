@@ -1,0 +1,90 @@
+name: Base Cloudflare verified publish
+on:
+  push:
+    branches: [feat/phase-1-foundation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: base-web-production-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Cloudflare Workers Builds stays authoritative by default. This second
+    # supported path is opt-in only; it never runs on PRs or main.
+    if: vars.BASE_WEB_GITHUB_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: base-web-production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Guard exact Base source and Cloudflare credentials
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "sautilink/Base"
+          test "$GITHUB_REF" = "refs/heads/feat/phase-1-foundation"
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Base Cloudflare publish is enabled, but its GitHub Actions secrets are missing."
+            exit 1
+          fi
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: node --test apps/web/lib/*.test.mjs
+      - run: pnpm --filter @base/api test
+      - run: pnpm build:cloudflare
+        env:
+          NEXT_PUBLIC_BASE_API_URL: https://sautilink-base-api-staging.onrender.com
+          NEXT_PUBLIC_SUPABASE_URL: https://gtzqirfwghijuzhvrnha.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.BASE_SUPABASE_PUBLISHABLE_KEY }}
+      - name: Publish the exact reviewed Base Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEXT_PUBLIC_BASE_API_URL: https://sautilink-base-api-staging.onrender.com
+          NEXT_PUBLIC_SUPABASE_URL: https://gtzqirfwghijuzhvrnha.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.BASE_SUPABASE_PUBLISHABLE_KEY }}
+        run: pnpm --filter @base/web deploy:cloudflare
+      - name: Verify custom-domain release marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='phase-11-bot-teams'
+          for attempt in 1 2 3 4 5 6 7 8; do
+            status="$(curl --silent --show-error --max-time 20 --output base-home.html \
+              --write-out '%{http_code}' https://base.sautilink.com/ || true)"
+            if [ "$status" = "200" ] && grep -qF "$expected" base-home.html; then
+              echo "Confirmed Base Worker release marker on canonical custom domain"
+              echo "Production Base Worker marker: $expected" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Cloudflare publish did not become visible at the canonical Base domain"
+          exit 1
+
+  guidance:
+    if: vars.BASE_WEB_GITHUB_DEPLOY_ENABLED != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report safe default
+        run: |
+          echo "GitHub-side Cloudflare production publishing is OFF by default."
+          echo "Cloudflare Workers Builds remains responsible for the connected production Worker."
+          echo "To opt in, configure a protected GitHub environment, least-privilege Cloudflare"
+          echo "Action secrets, and repository variable BASE_WEB_GITHUB_DEPLOY_ENABLED=true."

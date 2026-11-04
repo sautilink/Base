@@ -1,0 +1,194 @@
+name: Base staging readiness probe
+on:
+  push:
+    branches: [feat/phase-1-foundation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Verify Render staging liveness and database readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://sautilink-base-api-staging.onrender.com"
+          for path in health health/ready; do
+            echo "Probing /$path"
+            status="$(curl --silent --show-error --location --retry 4 --retry-delay 10 --connect-timeout 10 --max-time 90 --output response.json --write-out '%{http_code}' "$endpoint/$path")"
+            echo "Status: $status"
+            # The endpoints disclose no credentials. Echo only their response.
+            cat response.json
+            echo
+            test "$status" = "200" || exit 1
+          done
+
+      - name: Verify exact Render release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://sautilink-base-api-staging.onrender.com/health/release"
+          # A push starts this job before Render necessarily finishes deploying.
+          # Keep the exact-SHA gate, but give the independent deploy time to catch up.
+          for attempt in {1..20}; do
+            status="$(curl --silent --show-error --max-time 20 --output api-release.json \
+                --write-out '%{http_code}' "$url" || true)"
+            if [ "$status" = "200" ] && node -e '
+              const assert = require("node:assert/strict");
+              const fs = require("node:fs");
+              const info = JSON.parse(fs.readFileSync("api-release.json", "utf8"));
+              assert.deepEqual(Object.keys(info).sort(), ["revision", "service"]);
+              assert.equal(info.service, "sautilink-base-api");
+              assert.match(info.revision, /^[a-f0-9]{40}$/);
+              assert.equal(info.revision, process.env.GITHUB_SHA);
+            ' >/dev/null 2>&1; then
+              echo "Render is serving the exact audited staging commit: $GITHUB_SHA"
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              echo "::error::Render did not serve staging commit $GITHUB_SHA after 20 checks"
+              exit 1
+            fi
+            echo "Waiting for Render to publish staging commit $GITHUB_SHA (attempt $attempt/20)"
+            sleep 15
+          done
+
+      - name: Verify browser configuration and staging safety gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://sautilink-base-api-staging.onrender.com"
+          preview="https://feat-phase-1-foundation-sautilink-base-web.dr-charles-services.workers.dev"
+          status="$(curl --silent --show-error --connect-timeout 10 --max-time 90             --output client-config.json --write-out '%{http_code}' "$endpoint/client-config")"
+          test "$status" = "200"
+          # Never echo config contents to logs; this endpoint should contain
+          # only the Base publishable key and safe feature flags.
+          node -e '
+            const assert = require("node:assert/strict");
+            const fs = require("node:fs");
+            const c = JSON.parse(fs.readFileSync("client-config.json", "utf8"));
+            assert.deepEqual(Object.keys(c).sort(), [
+              "botConnectEnabled", "masterBotEnabled", "supabasePublishableKey", "supabaseUrl", "userBotDeliveryEnabled"
+            ]);
+            assert.equal(c.supabaseUrl, "https://gtzqirfwghijuzhvrnha.supabase.co");
+            assert.ok(c.supabasePublishableKey.startsWith("sb_publishable_"));
+            assert.equal(typeof c.botConnectEnabled, "boolean");
+            assert.equal(typeof c.masterBotEnabled, "boolean");
+            assert.equal(typeof c.userBotDeliveryEnabled, "boolean");
+            if (c.userBotDeliveryEnabled) assert.equal(c.botConnectEnabled, true);
+            fs.writeFileSync("master-mode.txt", c.masterBotEnabled ? "enabled" : "disabled");
+            fs.writeFileSync("connect-mode.txt", c.botConnectEnabled ? "restricted" : "disabled");
+            fs.writeFileSync("delivery-mode.txt", c.userBotDeliveryEnabled ? "enabled" : "disabled");
+          '
+          echo "Public Base configuration keys and restricted feature-gate types verified"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             --request POST --header 'Content-Type: application/json'             --data '{}' "$endpoint/bots/connect")"
+          if [ "$(cat connect-mode.txt)" = "restricted" ]; then
+            # Before token validation, connection requires auth or denies
+            # the unauthenticated IP when its quota is exhausted.
+            test "$status" = "401" || test "$status" = "429"
+          else
+            test "$status" = "503"
+          fi
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             --request POST --header 'Content-Type: application/json'             --data '{}' "$endpoint/telegram/master")"
+          if [ "$(cat master-mode.txt)" = "enabled" ]; then
+            # Active master must still refuse messages without Telegram secret.
+            test "$status" = "401"
+          else
+            # Disabled master must remain undiscoverable.
+            test "$status" = "404"
+          fi
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             "$endpoint/bots/00000000-0000-4000-8000-000000000000/config")"
+          test "$status" = "401"
+          echo "Blocked unauthenticated bot access; master webhook enforces its configured safety state"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              "$endpoint/bots/00000000-0000-4000-8000-000000000000/delivery-health")"
+          if [ "$(cat delivery-mode.txt)" = "enabled" ]; then
+            test "$status" = "401"
+          else
+            test "$status" = "503"
+          fi
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --request POST --header 'Content-Type: application/json' --data '{"update_id":1}' \
+              "$endpoint/telegram/bots/00000000-0000-4000-8000-000000000000")"
+          if [ "$(cat delivery-mode.txt)" = "enabled" ]; then
+            test "$status" = "401"
+          else
+            test "$status" = "404"
+          fi
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --request POST --header 'Content-Type: application/json' --data '{"token":"invalid"}' \
+              "$endpoint/bots/00000000-0000-4000-8000-000000000000/rotate-token")"
+          if [ "$(cat delivery-mode.txt)" = "enabled" ]; then
+            test "$status" = "401"
+          else
+            test "$status" = "503"
+          fi
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              "$endpoint/bots/00000000-0000-4000-8000-000000000000/webhook-health")"
+          if [ "$(cat delivery-mode.txt)" = "enabled" ]; then
+            test "$status" = "401"
+          else
+            test "$status" = "503"
+          fi
+          echo "BotFather rotation and webhook diagnostics reject unauthenticated requests"
+
+          echo "Delivery health and Telegram user-bot webhook reject unauthenticated requests"
+          curl --silent --show-error --output /dev/null --dump-header cors-headers.txt             --request OPTIONS --header "Origin: $preview"             --header 'Access-Control-Request-Method: PATCH'             --header 'Access-Control-Request-Headers: authorization,content-type'             "$endpoint/bots/00000000-0000-4000-8000-000000000000/welcome"
+          grep -iqF "Access-Control-Allow-Origin: $preview" cors-headers.txt
+          grep -i 'Access-Control-Allow-Methods:' cors-headers.txt | grep -qi 'PATCH'
+          echo "Trusted Preview CORS preflight accepts authenticated editor requests"
+
+  web-release:
+    # Split from API readiness, so a delayed Cloudflare publish does not
+    # hide passing API, permission and auth checks behind a single red job.
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify Base web custom domain and delivery release
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin="https://base.sautilink.com"
+          expected="Base is in early access. Telegram delivery is available only to approved test accounts."
+          # Cloudflare builds asynchronously after a branch push. Wait for the
+          # reviewed public copy to appear, rather than passing against old HTML.
+          deployed=false
+          for attempt in 1 2 3 4 5 6 7 8; do
+            code="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
+              --output home.html --write-out '%{http_code}' "$origin/" || true)"
+            if [ "$code" = "200" ] && grep -qF "$expected" home.html && \
+               grep -q 'base-release' home.html && grep -q 'phase-11-bot-teams' home.html; then
+              deployed=true
+              break
+            fi
+            echo "Phase 10 release not yet confirmed on canonical Base domain (attempt $attempt, HTTP $code)"
+            sleep 20
+          done
+          if [ "$deployed" != "true" ]; then
+            echo "::error::Base API may be healthy, but the Cloudflare production Worker is not yet serving Phase 10."
+            echo "See Cloudflare Worker Build History and publish the exact staging revision."
+            exit 1
+          fi
+          # Verify the product-phase marker. Exact source publication is
+          # confirmed separately against Cloudflare's deployment revision.
+          grep -q 'base-release' home.html
+          grep -q 'phase-11-bot-teams' home.html
+          for path in login dashboard; do
+            status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output page.html --write-out '%{http_code}' "$origin/$path")"
+            echo "Base web /$path HTTP $status"
+            test "$status" = "200"
+            grep -qF 'aria-label="SautiLink Base"' page.html
+            grep -qF 'phase-11-bot-teams' page.html
+          done
+          curl --silent --show-error --output /dev/null --dump-header live-cors.txt \
+            --request OPTIONS --header "Origin: $origin" \
+            --header 'Access-Control-Request-Method: GET' \
+            --header 'Access-Control-Request-Headers: authorization' \
+            "https://sautilink-base-api-staging.onrender.com/bots/00000000-0000-4000-8000-000000000000/delivery-health"
+          grep -iqF "Access-Control-Allow-Origin: $origin" live-cors.txt
+          echo "Base custom-domain routes, revised public copy, and delivery-health CORS verified"
