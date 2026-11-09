@@ -3,7 +3,8 @@ import {
   NotFoundException, Param, Patch, Post
 } from '@nestjs/common';
 import { pool } from './auth-db';
-import { botAccess } from './bot-access';
+import { botAccess, permits } from './bot-access';
+import { supportEnabled } from './support-inbox';
 import {
   InvalidBotConfig, parseCommand, parseEnabled, parseReplyRule, parseWelcome, validUuid
 } from './bot-config';
@@ -59,7 +60,8 @@ export class BotConfigController {
         [botId]
       )
     ]);
-    return { role:access.role, ownerId:access.owner_id, bot: bot.rows[0], commands: commands.rows, rules: rules.rows, menus:(await loadBuilder(botId)).menus };
+    return { role:access.role, ownerId:access.owner_id, bot: bot.rows[0], commands: commands.rows, rules: rules.rows,
+      supportInboxEnabled: permits(access.role,'operate') && supportEnabled(botId), menus:(await loadBuilder(botId)).menus };
   }
 
   // Read-only simulator. It never calls Telegram or stores messages.

@@ -5,6 +5,7 @@ import { InvalidBotConfig, validUuid } from './bot-config';
 import { broadcastEnabled, contentFingerprint, parseBroadcast, parseBroadcastReview, parseBroadcastSchedule, verifyDispatchKey } from './broadcast-config';
 import { botConnectTestOwners } from './bot-connect-config';
 import { dispatchBroadcasts } from './broadcast-engine';
+import { pruneSupport } from './support-inbox';
 import { liveBroadcastAdapter } from './broadcast-db';
 import type { Content } from './content-config';
 
@@ -126,6 +127,7 @@ export class BroadcastDispatchController {
     if(!broadcastEnabled(process.env))throw new NotFoundException();
     if(!verifyDispatchKey(key,process.env.BASE_BROADCAST_DISPATCH_KEY))throw new UnauthorizedException();
     await pool().query('update base_private.broadcast_scheduler set last_tick_at=now() where singleton');
+    await pruneSupport().catch(() => console.warn('Base support retention cleanup failed'));
     return dispatchBroadcasts(liveBroadcastAdapter);
   }
 }

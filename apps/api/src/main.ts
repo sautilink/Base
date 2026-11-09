@@ -3,6 +3,8 @@ import { Controller, Get, Header, Module, ServiceUnavailableException } from '@n
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { TeamController } from './team.controller';
+import { SupportController } from './support.controller';
+import { checkSupportSchema } from './support-inbox';
 import { BotsController } from './bots.controller';
 import { BotConfigController } from './bot-config.controller';
 import { MasterWebhookController } from './master-webhook.controller';
@@ -182,6 +184,8 @@ class HealthController {
           throw new Error('Unexpected user-bot delivery privileges');
         }
       }
+      phase = 'support-schema';
+      await checkSupportSchema();
       return { status: 'ready', service: 'sautilink-base-api' };
     } catch (error) {
       const maybe = error as { code?: unknown; name?: unknown };
@@ -209,7 +213,7 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [TeamController,
+@Module({ controllers: [TeamController, SupportController,
   HealthController, PublicConfigController, BotsController, BotConfigController,
   MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController, ContentController, AudienceController, BroadcastController, BroadcastDispatchController
 ] })

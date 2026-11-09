@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { pool } from './auth-db';
 import { simulateBotMessage, type BotReplyConfiguration } from './simulate-bot';
 import { activeBotToken } from './user-bot-credential';
@@ -8,6 +9,7 @@ import {menuReply,type RichReply} from './content-config';
 import {privateMenuCallback,sendRichReply} from './content-delivery';
 import { audienceCommand, audienceMessageTime, audienceVisitorKey, privateAudienceSender, type AudienceObservation } from './audience';
 import { encryptDestination } from './broadcast-config';
+import { recordSupport, supportEnabled, supportInput, type SupportInput, type SupportResult } from './support-inbox';
 
 type Bot = { id: string; username: string; status: string; welcome_message: string };
 type Rules = Pick<BotReplyConfiguration, 'commands' | 'rules' | 'contents' | 'menus'>;
@@ -17,6 +19,8 @@ export type DeliveryAdapter = {
   loadRules: (botId: string) => Promise<Rules>;
   activeToken: (botId: string) => Promise<string>;
   claim: (botId: string, updateId: number, observation?: AudienceObservation) => Promise<boolean>;
+  claimSupport?: (botId: string, updateId: number, observation: AudienceObservation, input: SupportInput) =>
+    Promise<{ claimed: boolean; support: SupportResult }>;
   visitorKey?: (botId: string, chatId: number) => string;
   destination?: (botId: string, visitorKey: string, chatId: number) => Buffer;
   complete: (botId: string, updateId: number, status: 'sent' | 'ignored' | 'unknown') => Promise<void>;
@@ -44,6 +48,13 @@ const liveAdapter: DeliveryAdapter = {
   },
   activeToken: activeBotToken,
   claim: claimUserBotUpdate,
+  async claimSupport(botId, updateId, observation, input) {
+    let support: SupportResult = { consumed: false };
+    const claimed = await claimUserBotUpdate(botId, updateId, observation, undefined, async db => {
+      support = await recordSupport(db, botId, updateId, input);
+    }).catch(() => { throw new ServiceUnavailableException('Support processing unavailable'); });
+    return { claimed, support };
+  },
   visitorKey: (botId, chatId) => audienceVisitorKey(botId, chatId, process.env.USER_BOT_WEBHOOK_SECRET_KEY),
   destination: (botId, visitorKey, chatId) => encryptDestination(botId,visitorKey,chatId,process.env.BOT_TOKEN_ENCRYPTION_KEY),
   complete: completeUserBotUpdate,
@@ -71,7 +82,7 @@ export async function handleUserBotUpdate(
   if (action && (!privateAudienceSender(body) || actionAt === null)) {
     reply = null; responseText = null;
   }
-  const token = responseText || reply?.content || callback ? await adapter.activeToken(botId) : null;
+  let token = responseText || reply?.content || callback ? await adapter.activeToken(botId) : null;
   const sender = message ? privateAudienceSender(body) : callback?.chatId;
   const observation: AudienceObservation | undefined = sender && adapter.visitorKey ? {
     visitorKey: adapter.visitorKey(botId, sender),
@@ -82,8 +93,20 @@ export async function handleUserBotUpdate(
   if (observation?.action === 'subscribe' && adapter.destination && sender) {
     observation.destination = adapter.destination(botId,observation.visitorKey,sender);
   }
-  const claimed = await adapter.claim(botId, updateId, observation);
+  const input = message && adapter.claimSupport && supportEnabled(botId) ? supportInput(body, message.text, bot.username) : null;
+  const claim = input && observation && adapter.claimSupport
+    ? await adapter.claimSupport(botId, updateId, observation, input)
+    : { claimed: await adapter.claim(botId, updateId, observation), support: undefined };
+  const { claimed } = claim;
   if (!claimed) return { ok: true, duplicate: true };
+  if (claim.support?.consumed) {
+    reply = null;
+    responseText = claim.support.reply ?? null;
+    if (responseText && !token) {
+      try { token = await adapter.activeToken(botId); }
+      catch { await adapter.complete(botId, updateId, 'unknown'); return { ok: true }; }
+    }
+  }
   if(callback&&token&&adapter.answer){try{await adapter.answer(token,callback.queryId);}catch{/* Callback acknowledgement cannot authorize or replay a send. */}}
   if ((!message&&!callback) || (!responseText&&!reply?.content) || !token) {
     await adapter.complete(botId, updateId, 'ignored');

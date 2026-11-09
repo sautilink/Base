@@ -3,7 +3,7 @@ import { randomInt } from 'node:crypto';
 import { validUuid } from './bot-config';
 import { extractUpdateId } from './master-update-ledger';
 import type { AudienceObservation } from './audience';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 
 export { extractUpdateId };
 
@@ -37,7 +37,7 @@ export async function probeUserBotLedgerWrite(botId: string): Promise<void> {
   }
 }
 
-export async function claimUserBotUpdate(botId: string, updateId: number, observation?: AudienceObservation, database?: Pick<Pool, 'connect' | 'query'>): Promise<boolean> {
+export async function claimUserBotUpdate(botId: string, updateId: number, observation?: AudienceObservation, database?: Pick<Pool, 'connect' | 'query'>, onClaim?: (db: PoolClient) => Promise<void>): Promise<boolean> {
   if (!validUuid(botId) || !Number.isSafeInteger(updateId) || updateId < 0) throw new Error('Invalid update identity');
   if (observation) {
     if (!/^[a-f0-9]{64}$/.test(observation.visitorKey) || !['message','menu'].includes(observation.kind) ||
@@ -68,6 +68,7 @@ export async function claimUserBotUpdate(botId: string, updateId: number, observ
         messages=bot_activity_daily.messages+excluded.messages,
         menu_clicks=bot_activity_daily.menu_clicks+excluded.menu_clicks`,
         [botId,observation.kind === 'message' ? 1 : 0,observation.kind === 'menu' ? 1 : 0]);
+      await onClaim?.(client);
       await client.query('COMMIT');
       return true;
     } catch (error) {

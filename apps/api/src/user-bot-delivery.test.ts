@@ -5,6 +5,39 @@ import { handleUserBotUpdate, type DeliveryAdapter } from './user-bot-delivery';
 const botId = '3d45cfeb-6c0d-42ee-aec7-849e60e66ef0';
 const message = { update_id: 77, message: { chat: { id: 123, type: 'private' }, text: '/start' } };
 
+test('an opted-in support message suppresses the normal keyword reply; /ping still uses the bot reply', async (t) => {
+  const env = {
+    BASE_SUPPORT_SCHEMA_READY: 'true', BASE_SUPPORT_BOT_IDS: botId,
+    BASE_BROADCAST_ENABLED: 'true', USER_BOT_DELIVERY_ENABLED: 'true', BASE_BROADCAST_DISPATCH_KEY: 'a'.repeat(43)
+  };
+  const previous = Object.fromEntries(Object.keys(env).map(key => [key, process.env[key]]));
+  t.after(() => { for (const [key, value] of Object.entries(previous)) {
+    if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  } });
+  Object.assign(process.env, env);
+  const f = fixture();
+  f.adapter.visitorKey = () => 'a'.repeat(64);
+  f.adapter.loadRules = async () => ({
+    commands: [{ command: 'ping', response_text: 'pong' }],
+    rules: [{ keyword: 'help', response_text: 'Automated help', enabled: true }],
+  });
+  const captured: string[] = [];
+  f.adapter.claimSupport = async (id, update, observation, input) => {
+    const claimed = await f.adapter.claim(id, update, observation);
+    if (claimed) captured.push(input.text);
+    return { claimed, support: { consumed: true } };
+  };
+  const telegram = (text: string) => ({ message: {
+    date: Math.floor(Date.now() / 1000), chat: { id: 123, type: 'private' }, from: { id: 123, is_bot: false }, text
+  } });
+  await handleUserBotUpdate(botId, 91, telegram('Please help'), f.adapter);
+  await handleUserBotUpdate(botId, 91, telegram('Please help'), f.adapter);
+  await handleUserBotUpdate(botId, 92, telegram('/ping'), f.adapter);
+  assert.deepEqual(captured, ['Please help']);
+  assert.deepEqual(f.sends, [{ chatId: 123, text: 'pong' }]);
+  assert.deepEqual(f.completed, ['ignored', 'sent']);
+});
+
 function fixture(status = 'active') {
   const claimed = new Set<number>();
   const sends: Array<{ chatId: number; text: string }> = [];
