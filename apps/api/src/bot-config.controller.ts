@@ -5,6 +5,7 @@ import {
 import { pool } from './auth-db';
 import { botAccess, permits } from './bot-access';
 import { supportEnabled } from './support-inbox';
+import { surveysEnabled } from './surveys';
 import {
   InvalidBotConfig, parseCommand, parseEnabled, parseReplyRule, parseWelcome, validUuid
 } from './bot-config';
@@ -61,7 +62,8 @@ export class BotConfigController {
       )
     ]);
     return { role:access.role, ownerId:access.owner_id, bot: bot.rows[0], commands: commands.rows, rules: rules.rows,
-      supportInboxEnabled: permits(access.role,'operate') && supportEnabled(botId), menus:(await loadBuilder(botId)).menus };
+      supportInboxEnabled: permits(access.role,'operate') && supportEnabled(botId), surveysEnabled: surveysEnabled(botId),
+      menus:(await loadBuilder(botId)).menus };
   }
 
   // Read-only simulator. It never calls Telegram or stores messages.

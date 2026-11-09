@@ -7,12 +7,14 @@ import AudienceAnalytics from './audience-analytics';
 import BroadcastCenter from './broadcast-center';
 import TeamManager from './team-manager';
 import SupportInbox from './support-inbox';
+import Surveys from './surveys';
 
 type Command = { id: string; command: string; response_text: string; content_id?: string|null };
 type Rule = { id: string; keyword: string; response_text: string; enabled: boolean };
 type Config = {
   role: string; ownerId:string;
   supportInboxEnabled?: boolean;
+  surveysEnabled?: boolean;
   bot: { id: string; username: string; display_name: string; status: string; welcome_message: string };
   commands: Command[];
   rules: Rule[];
@@ -280,6 +282,7 @@ export default function BotEditor({ botId, apiUrl, deliveryEnabled, onStatusChan
     {!config ? null : <>
       <TeamManager botId={botId} role={config.role} onLeft={onWorkspaceChange}/>
       {config.supportInboxEnabled && <SupportInbox key={botId} botId={botId} active={active}/>}
+      {config.surveysEnabled && <Surveys key={botId} botId={botId} canManage={canOperate}/>}
       <AudienceAnalytics botId={botId} request={request}/>
       <BroadcastCenter botId={botId} request={request} revision={config} readOnly={!canOperate}/>
       <ContentManager botId={botId} request={request} onChanged={refresh} ownerId={config.ownerId} readOnly={!canEdit} canOperate={canOperate}/>

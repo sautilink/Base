@@ -2,12 +2,17 @@ import { type RichReply } from './content-config';
 import { userBotTelegramCall } from './user-bot-telegram';
 
 const PROJECT='https://gtzqirfwghijuzhvrnha.supabase.co';
-export function privateMenuCallback(body:unknown): {chatId:number;id:string|null;queryId:string}|null {
+export function privateCallback(body:unknown): {chatId:number;data:string;queryId:string}|null {
   const q=(body as {callback_query?:{id?:unknown;data?:unknown;from?:{id?:unknown;is_bot?:unknown};message?:{chat?:{id?:unknown;type?:unknown}}}}|null)?.callback_query;
   if(!q||typeof q.id!=='string'||q.id.length>256||q.from?.is_bot===true||q.message?.chat?.type!=='private')return null;
   const chatId=q.message.chat.id;
-  if(typeof chatId!=='number'||!Number.isSafeInteger(chatId)||chatId<=0||q.from?.id!==chatId||typeof q.data!=='string'||!/^menu:(root|[0-9a-f-]{36})$/i.test(q.data))return null;
-  return {chatId,id:q.data==='menu:root'?null:q.data.slice(5),queryId:q.id};
+  if(typeof chatId!=='number'||!Number.isSafeInteger(chatId)||chatId<=0||q.from?.id!==chatId||typeof q.data!=='string')return null;
+  return {chatId,data:q.data,queryId:q.id};
+}
+export function privateMenuCallback(body:unknown): {chatId:number;id:string|null;queryId:string}|null {
+  const callback=privateCallback(body);
+  if(!callback||!/^menu:(root|[0-9a-f-]{36})$/i.test(callback.data))return null;
+  return {chatId:callback.chatId,id:callback.data==='menu:root'?null:callback.data.slice(5),queryId:callback.queryId};
 }
 export async function signedMediaUrl(path:string,fetcher:typeof fetch=fetch):Promise<string> {
   if(!/^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]+$/i.test(path))throw new Error('Invalid media path');

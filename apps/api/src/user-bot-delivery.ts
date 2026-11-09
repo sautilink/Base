@@ -10,6 +10,7 @@ import {privateMenuCallback,sendRichReply} from './content-delivery';
 import { audienceCommand, audienceMessageTime, audienceVisitorKey, privateAudienceSender, type AudienceObservation } from './audience';
 import { encryptDestination } from './broadcast-config';
 import { recordSupport, supportEnabled, supportInput, type SupportInput, type SupportResult } from './support-inbox';
+import { isSurveyCommand, recordSurveyVote, surveyCallback, surveyReply, surveysEnabled, type SurveyVote } from './surveys';
 
 type Bot = { id: string; username: string; status: string; welcome_message: string };
 type Rules = Pick<BotReplyConfiguration, 'commands' | 'rules' | 'contents' | 'menus'>;
@@ -21,11 +22,14 @@ export type DeliveryAdapter = {
   claim: (botId: string, updateId: number, observation?: AudienceObservation) => Promise<boolean>;
   claimSupport?: (botId: string, updateId: number, observation: AudienceObservation, input: SupportInput) =>
     Promise<{ claimed: boolean; support: SupportResult }>;
+  surveyReply?: (botId: string) => Promise<RichReply>;
+  claimSurveyVote?: (botId: string, updateId: number, vote: SurveyVote) =>
+    Promise<{ claimed: boolean; answer: string }>;
   visitorKey?: (botId: string, chatId: number) => string;
   destination?: (botId: string, visitorKey: string, chatId: number) => Buffer;
   complete: (botId: string, updateId: number, status: 'sent' | 'ignored' | 'unknown') => Promise<void>;
   send: (token: string, chatId: number, text: string, reply?:RichReply) => Promise<void>;
-  answer?: (token:string,queryId:string)=>Promise<void>;
+  answer?: (token:string,queryId:string,text?:string)=>Promise<void>;
 };
 
 const liveAdapter: DeliveryAdapter = {
@@ -48,6 +52,14 @@ const liveAdapter: DeliveryAdapter = {
   },
   activeToken: activeBotToken,
   claim: claimUserBotUpdate,
+  surveyReply,
+  async claimSurveyVote(botId, updateId, vote) {
+    let answer = '';
+    const claimed = await claimUserBotUpdate(botId, updateId, undefined, undefined, async db => {
+      answer = await recordSurveyVote(db, botId, vote);
+    }).catch(() => { throw new ServiceUnavailableException('Survey vote unavailable'); });
+    return { claimed, answer };
+  },
   async claimSupport(botId, updateId, observation, input) {
     let support: SupportResult = { consumed: false };
     const claimed = await claimUserBotUpdate(botId, updateId, observation, undefined, async db => {
@@ -59,7 +71,7 @@ const liveAdapter: DeliveryAdapter = {
   destination: (botId, visitorKey, chatId) => encryptDestination(botId,visitorKey,chatId,process.env.BOT_TOKEN_ENCRYPTION_KEY),
   complete: completeUserBotUpdate,
   send:sendRichReply,
-  async answer(token,queryId){await userBotTelegramCall(token,'answerCallbackQuery',{callback_query_id:queryId});}
+  async answer(token,queryId,text){await userBotTelegramCall(token,'answerCallbackQuery',{callback_query_id:queryId,...(text ? { text } : {})});}
 };
 
 /** At-most-once delivery. DB failures before claim propagate so Telegram retries. */
@@ -70,9 +82,14 @@ export async function handleUserBotUpdate(
   if (!bot || bot.status !== 'active') return { ok: true, inactive: true };
   const message = privateTextMessage(body);
   const callback=privateMenuCallback(body);
+  const surveyOn = surveysEnabled(botId);
+  const vote = surveyOn ? surveyCallback(body) : null;
   let reply:RichReply|null=null;
   let responseText: string | null = null;
-  if (message || callback) {
+  if (message && surveyOn && adapter.surveyReply && isSurveyCommand(message.text, bot.username)) {
+    reply = await adapter.surveyReply(botId);
+    responseText = reply.responseText;
+  } else if (message || callback) {
     const rules = await adapter.loadRules(botId);
     reply=callback?menuReply(callback.id,rules.menus??[],rules.contents??[]):simulateBotMessage(message!.text, { ...bot, ...rules });
     responseText=reply?.responseText??null;
@@ -82,7 +99,7 @@ export async function handleUserBotUpdate(
   if (action && (!privateAudienceSender(body) || actionAt === null)) {
     reply = null; responseText = null;
   }
-  let token = responseText || reply?.content || callback ? await adapter.activeToken(botId) : null;
+  let token = responseText || reply?.content || callback || vote ? await adapter.activeToken(botId) : null;
   const sender = message ? privateAudienceSender(body) : callback?.chatId;
   const observation: AudienceObservation | undefined = sender && adapter.visitorKey ? {
     visitorKey: adapter.visitorKey(botId, sender),
@@ -92,6 +109,14 @@ export async function handleUserBotUpdate(
   } : undefined;
   if (observation?.action === 'subscribe' && adapter.destination && sender) {
     observation.destination = adapter.destination(botId,observation.visitorKey,sender);
+  }
+  if (vote && token && adapter.claimSurveyVote) {
+    const { claimed, answer } = await adapter.claimSurveyVote(botId, updateId, vote);
+    if (!claimed) return { ok: true, duplicate: true };
+    try { await adapter.answer?.(token, vote.queryId, answer); }
+    catch { /* The vote committed already. An acknowledgement failure does not undo it. */ }
+    await adapter.complete(botId, updateId, 'ignored');
+    return { ok: true };
   }
   const input = message && adapter.claimSupport && supportEnabled(botId) ? supportInput(body, message.text, bot.username) : null;
   const claim = input && observation && adapter.claimSupport

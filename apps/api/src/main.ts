@@ -4,6 +4,8 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { TeamController } from './team.controller';
 import { SupportController } from './support.controller';
+import { SurveysController } from './surveys.controller';
+import { checkSurveySchema } from './surveys';
 import { checkSupportSchema } from './support-inbox';
 import { BotsController } from './bots.controller';
 import { BotConfigController } from './bot-config.controller';
@@ -186,6 +188,8 @@ class HealthController {
       }
       phase = 'support-schema';
       await checkSupportSchema();
+      phase = 'survey-schema';
+      await checkSurveySchema();
       return { status: 'ready', service: 'sautilink-base-api' };
     } catch (error) {
       const maybe = error as { code?: unknown; name?: unknown };
@@ -213,7 +217,7 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [TeamController, SupportController,
+@Module({ controllers: [TeamController, SupportController, SurveysController,
   HealthController, PublicConfigController, BotsController, BotConfigController,
   MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController, ContentController, AudienceController, BroadcastController, BroadcastDispatchController
 ] })

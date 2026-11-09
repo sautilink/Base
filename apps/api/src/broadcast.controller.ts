@@ -6,6 +6,7 @@ import { broadcastEnabled, contentFingerprint, parseBroadcast, parseBroadcastRev
 import { botConnectTestOwners } from './bot-connect-config';
 import { dispatchBroadcasts } from './broadcast-engine';
 import { pruneSupport } from './support-inbox';
+import { pruneSurveys } from './surveys';
 import { liveBroadcastAdapter } from './broadcast-db';
 import type { Content } from './content-config';
 
@@ -128,6 +129,7 @@ export class BroadcastDispatchController {
     if(!verifyDispatchKey(key,process.env.BASE_BROADCAST_DISPATCH_KEY))throw new UnauthorizedException();
     await pool().query('update base_private.broadcast_scheduler set last_tick_at=now() where singleton');
     await pruneSupport().catch(() => console.warn('Base support retention cleanup failed'));
+    await pruneSurveys().catch(() => console.warn('Base survey retention cleanup failed'));
     return dispatchBroadcasts(liveBroadcastAdapter);
   }
 }

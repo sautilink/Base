@@ -39,10 +39,10 @@ export async function probeUserBotLedgerWrite(botId: string): Promise<void> {
 
 export async function claimUserBotUpdate(botId: string, updateId: number, observation?: AudienceObservation, database?: Pick<Pool, 'connect' | 'query'>, onClaim?: (db: PoolClient) => Promise<void>): Promise<boolean> {
   if (!validUuid(botId) || !Number.isSafeInteger(updateId) || updateId < 0) throw new Error('Invalid update identity');
-  if (observation) {
-    if (!/^[a-f0-9]{64}$/.test(observation.visitorKey) || !['message','menu'].includes(observation.kind) ||
+  if (observation && (!/^[a-f0-9]{64}$/.test(observation.visitorKey) || !['message','menu'].includes(observation.kind) ||
         ![null,'subscribe','unsubscribe'].includes(observation.action) ||
-        (observation.action !== null && (!Number.isSafeInteger(observation.actionAt) || observation.actionAt! <= 0))) throw new Error('Invalid audience observation');
+        (observation.action !== null && (!Number.isSafeInteger(observation.actionAt) || observation.actionAt! <= 0)))) throw new Error('Invalid audience observation');
+  if (observation || onClaim) {
     const client = await (database ?? pool()).connect();
     let discard = false;
     try {
@@ -54,27 +54,29 @@ export async function claimUserBotUpdate(botId: string, updateId: number, observ
       if (claim.rowCount !== 1) { await client.query('COMMIT'); return false; }
       // The claim, consent preference and counters commit together. A DB
       // failure rolls everything back so Telegram can safely retry before send.
-      const state = observation.action === 'subscribe' ? 'subscribed' : observation.action === 'unsubscribe' ? 'unsubscribed' : 'not_subscribed';
-      await client.query(`insert into base_private.bot_audience(bot_id,visitor_key,subscription_state,consent_update_id,consent_message_at,destination_ciphertext)
-        values($1,$2,$3,$4,$5,$6) on conflict(bot_id,visitor_key) do update set
-        last_seen_at=greatest(bot_audience.last_seen_at,excluded.last_seen_at),
-        subscription_state=case when (excluded.consent_message_at,excluded.consent_update_id)>(bot_audience.consent_message_at,bot_audience.consent_update_id) then excluded.subscription_state else bot_audience.subscription_state end,
-        consent_update_id=case when (excluded.consent_message_at,excluded.consent_update_id)>(bot_audience.consent_message_at,bot_audience.consent_update_id) then excluded.consent_update_id else bot_audience.consent_update_id end,
-        destination_ciphertext=case when (excluded.consent_message_at,excluded.consent_update_id)>(bot_audience.consent_message_at,bot_audience.consent_update_id) then excluded.destination_ciphertext else bot_audience.destination_ciphertext end,
-        consent_message_at=greatest(bot_audience.consent_message_at,excluded.consent_message_at)`,
-        [botId,observation.visitorKey,state,observation.action ? updateId : -1,observation.action ? observation.actionAt : -1,observation.action === 'subscribe' ? observation.destination ?? null : null]);
-      await client.query(`insert into base_private.bot_activity_daily(bot_id,day,messages,menu_clicks)
-        values($1,(now() at time zone 'UTC')::date,$2,$3) on conflict(bot_id,day) do update set
-        messages=bot_activity_daily.messages+excluded.messages,
-        menu_clicks=bot_activity_daily.menu_clicks+excluded.menu_clicks`,
-        [botId,observation.kind === 'message' ? 1 : 0,observation.kind === 'menu' ? 1 : 0]);
+      if (observation) {
+        const state = observation.action === 'subscribe' ? 'subscribed' : observation.action === 'unsubscribe' ? 'unsubscribed' : 'not_subscribed';
+        await client.query(`insert into base_private.bot_audience(bot_id,visitor_key,subscription_state,consent_update_id,consent_message_at,destination_ciphertext)
+          values($1,$2,$3,$4,$5,$6) on conflict(bot_id,visitor_key) do update set
+          last_seen_at=greatest(bot_audience.last_seen_at,excluded.last_seen_at),
+          subscription_state=case when (excluded.consent_message_at,excluded.consent_update_id)>(bot_audience.consent_message_at,bot_audience.consent_update_id) then excluded.subscription_state else bot_audience.subscription_state end,
+          consent_update_id=case when (excluded.consent_message_at,excluded.consent_update_id)>(bot_audience.consent_message_at,bot_audience.consent_update_id) then excluded.consent_update_id else bot_audience.consent_update_id end,
+          destination_ciphertext=case when (excluded.consent_message_at,excluded.consent_update_id)>(bot_audience.consent_message_at,bot_audience.consent_update_id) then excluded.destination_ciphertext else bot_audience.destination_ciphertext end,
+          consent_message_at=greatest(bot_audience.consent_message_at,excluded.consent_message_at)`,
+          [botId,observation.visitorKey,state,observation.action ? updateId : -1,observation.action ? observation.actionAt : -1,observation.action === 'subscribe' ? observation.destination ?? null : null]);
+        await client.query(`insert into base_private.bot_activity_daily(bot_id,day,messages,menu_clicks)
+          values($1,(now() at time zone 'UTC')::date,$2,$3) on conflict(bot_id,day) do update set
+          messages=bot_activity_daily.messages+excluded.messages,
+          menu_clicks=bot_activity_daily.menu_clicks+excluded.menu_clicks`,
+          [botId,observation.kind === 'message' ? 1 : 0,observation.kind === 'menu' ? 1 : 0]);
+      }
       await onClaim?.(client);
       await client.query('COMMIT');
       return true;
     } catch (error) {
       try { await client.query('ROLLBACK'); } catch { discard = true; }
       throw error;
-    } finally { client.release(discard ? new Error('Audience transaction rollback failed') : undefined); }
+    } finally { client.release(discard ? new Error('Bot update transaction rollback failed') : undefined); }
   }
   const result = await (database ?? pool()).query(
     "insert into base_private.user_bot_update_ledger(bot_id, update_id, status) values($1,$2,'processing') on conflict(bot_id,update_id) do nothing returning update_id",
