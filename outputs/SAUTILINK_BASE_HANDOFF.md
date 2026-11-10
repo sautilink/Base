@@ -1,0 +1,49 @@
+# SautiLink Base — release handoff
+
+## Phase 11 implementation — 2026-11-04
+
+- Per-bot Owner/Admin/Editor/Viewer access, invitations addressed to the recipient Base team ID, accept/decline/leave, owner revocation and role changes, append-only team history, shared web/Mini App controls and membership-aware private media RLS are implemented. Existing two-account pilot limits stay in force. No real membership or invitation has been created.
+- 108 API tests, 7 web tests, typechecks and production Next build passed. Transactional Base database RLS tests passed. Additive migration `20261103160820_base_bot_teams` was applied with explicit user approval after automatic review requested confirmation; schema history recorded and membership/event tables empty.
+- Live rollout and real two-account acceptance are still pending. See `docs/PHASE_11_BOT_TEAMS.md`; never confuse implementation or SQL tests with actual user acceptance.
+
+
+**Checkpoint:** 2026-11-03. This file is safe for source control. Keep credentials, private account details and raw Telegram initData out of it.
+
+## Release boundary
+
+- Work is on `feat/phase-1-foundation`. PR #1 is Draft and targets the intentionally empty `main`; do not merge it without a separate release decision.
+- Cloudflare Production serves the feature branch on `base.sautilink.com` at the owner's request. The separate SautiLink App infrastructure is untouched.
+- The Base Render API is a separate staging service. User-bot connection and delivery remain restricted to the approved test accounts.
+
+## Current implementation
+
+- Phase 10 Broadcast Center and its one-minute scheduler are live. The owner explicitly approved a fresh dispatch secret on Base Worker Production and Base API staging, enabled broadcasts and deployment of both resources, including shared free-hour usage. Runtime fix `0da8486` uses Workers-compatible manual redirects and rejects redirects without forwarding the secret. CI #166 passed 104 API/seven web tests and builds; Render `dep-dbkk6d2jnfac7395sn8g` exact SHA/ready and Cloudflare `52dc81be` active 100% were confirmed. Consecutive cron events succeeded and the custom-domain dashboard showed Scheduler Connected. Unsigned dispatch returns 401. The stale web-release branding probe was also corrected. See `docs/PHASE_10_BROADCAST_CENTER.md` for evidence and limits.
+- The owner separately approved sending `Base broadcast demo` after a fresh `/subscribe`. It completed with accepted 1 and owner-confirmed photo/caption receipt. Ready/subscribed counts are both 1. The owner then requested scheduling/cancellation tests. A 05:35 campaign completed with accepted 1 after native confirmation blocked cancellation; never mislabel or replay it. Fix `871f330` replaces native confirmation with an explicit review inside the card. CI #168 passed; Worker `14d0f624` served 100% and Render `dep-dbkkjmnb9u1s73fm43og` exact SHA/ready passed.
+- Live cancellation now passed: `Keep campaign` preserved the draft; `Base cancellation verification` was scheduled for 05:50, then explicitly cancelled before dispatch, leaving accepted 0, waiting 0, skipped 1, unknown 0. All three daily campaign slots are consumed (two completed, one cancelled). Do not reset limits or send another test today. Retain their history and the subscribed test recipient. See `docs/PHASE_10_BROADCAST_CENTER.md` for exact evidence and remaining wider-release limits.
+
+- Phase 9 audience analytics is live at code `28c16cd` (95 API tests, CI #161, Render `dep-dbka6pugekts73f6ue20` exact release/ready, Cloudflare `a3462741` active 100%). Both Base-only migrations and rolled-back DB/real-query isolation tests passed. Owner browser chart/table/simulator checks passed; no real subscriber or fixture was created by those checks. The owner subsequently confirmed real `/subscribe`, `/unsubscribe`, `/ping` replies all worked on @techhubtz_support_bot. Post-test dashboard counters were not independently rechecked in this acceptance update. See `docs/PHASE_9_AUDIENCE_ANALYTICS.md`; broadcast sending remains future work. Analytics uses HMAC pseudonyms, not stored chat IDs; future broadcasts require a separate consent-preserving encrypted destination design.
+
+- Phase 8 Content Manager and Menu Builder are live: text, private photo/video/audio/document uploads, content command bindings, nested menus/HTTPS buttons, interactive preview and Telegram callback/media delivery. SautiLink logo followed by gray Base appears throughout the web UI.
+
+- Base Auth, owner-scoped bot connection and editing, commands and keyword replies, simulator, activation/pause, encrypted BotFather token storage and token rotation.
+- Private Telegram delivery ledger, owner-only delivery and webhook-health diagnostics, conservative manual retention and at-most-once handling of ambiguous sends. Unknown outcomes are not replayed automatically.
+- @SautiLinkBaseBot offers an inline Telegram Mini App button in private chat. `/miniapp` verifies raw Telegram initData with the Base API before loading the existing dashboard. The user must still have a separate Base Auth session. Telegram identity alone grants no bot access.
+
+## Verified on 2026-11-02
+
+- **Latest product checkpoint — Phase 8:** `ad0a270`, CI #159 passed 87 API tests/typechecks/builds. Render `dep-dbk03lvlk1mc73af4vmg` reported that exact revision and ready health; Cloudflare build `2c8dda8d` published active Worker `84f5949e` at 100% on `base.sautilink.com`. Private bucket and additive content/menu migration applied only to Base. Rolled-back owner/isolation/tree tests and actual media Storage RLS checks passed. Browser upload/preview and command/menu setup passed; the owner confirmed receiving the image/caption and using nested menus and Back in Telegram.
+- Modern Base storage secret is configured server-side on the separate Base API with owner approval. No credential belongs in source control or browser responses. One editable demo image, `/base_demo`, and the two `Jaribio la Base → Picha ya Base` menu items remain on the test bot. See `docs/PHASE_8_CONTENT_MENUS.md` for types, bounds and architecture.
+
+- GitHub CI #154 passed for `f2e225c`; CI #155 passed for the Mini App timeout/retry fix at `16ff45c`.
+- Cloudflare build `54c86a87` published `16ff45c` as active Worker version `a1fcdf60`, Ready at 100% traffic. Direct browser access to `https://base.sautilink.com/miniapp` displays the Telegram launch guidance and no dashboard.
+- The separate Base API deployed `f2e225c` as `dep-dbjuvpp42hec73e51o00`; `/health/release` showed that exact revision and `/health/ready` was ready. The unsigned Mini App verification POST returned 401; the custom-domain CORS preflight returned 204 with the reviewed origin.
+- The initial Telegram Mini App test showed verification unavailable. `16ff45c` extended the API timeout and added a safe retry, but Retry then showed the Telegram launch guidance. A direct download of `telegram.org/js/telegram-web-app.js` from the tested network timed out, confirming the external SDK host was unavailable here. The subsequent web revision reads Telegram's signed launch fragment directly, with API verification unchanged.
+- Cloudflare build `1c1e56e3` then published the direct launch-fragment fix at `ffd5cc6`; Worker version `d672a993` was active at 100% traffic. A fake launch was rejected, direct browser access showed launch guidance, and the owner confirmed a fresh Telegram Mini App launch showed @techhubtz_support_bot and opened its editor. This is the owner acceptance for Phase 7.
+- The user bot remained active after the pause test. An observed `pong` arrived after reactivation, so that observation does not prove a reply while paused. Activation now drops queued Telegram updates to prevent replay on reactivation.
+- The user confirmed the second Base account inside the Mini App showed zero bots. Phase 7 owner/editor and second-account empty-list acceptance passed by user observation; this is not a new cross-account HTTP authorization probe.
+
+## Next gates
+
+1. Review rate limits, monitoring, backup/restore, retention and recovery for ambiguous Telegram delivery before a wider release.
+
+See `docs/PHASE_7_MINIAPP.md`, `docs/PHASE_PROGRESS.md` and the Base operational runbooks. No BotFather menu button or Main Mini App setting was changed in this phase.

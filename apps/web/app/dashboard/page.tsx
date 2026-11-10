@@ -1,0 +1,241 @@
+'use client';
+import { useEffect, useState, type FormEvent } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { getSupabase, getBaseApiUrl, getPublicBaseConfig } from '../../lib/supabase';
+import BotEditor from './bot-editor';
+import Brand from '../brand';
+import {baseRequest} from '../../lib/base-request';
+
+type Bot = { id: string; username: string; display_name: string; status: string; role: string };
+type Invitation={id:string;role:string;username:string;display_name:string;expires_at:string};
+type Workspace={teamId:string;bots:Bot[];invitations:Invitation[]};
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [teamId,setTeamId]=useState(''),[invitations,setInvitations]=useState<Invitation[]>([]),[teamBusy,setTeamBusy]=useState(false);
+  async function refreshWorkspace(){const r=await baseRequest<Workspace>('/team/workspace');setTeamId(r.teamId);setBots(r.bots);setInvitations(r.invitations);setSelectedBotId(current=>r.bots.some(b=>b.id===current)?current:r.bots[0]?.id??null);setStatus('');}
+  async function answerInvitation(id:string,decision:'accept'|'decline'){setTeamBusy(true);try{await baseRequest('/team/invitations/'+id+'/'+decision,{method:'POST'});await refreshWorkspace();}catch(e){setStatus(e instanceof Error?e.message:'Unable to answer invitation.');}finally{setTeamBusy(false);}}
+  const [status, setStatus] = useState('Checking your session...');
+  const [bots, setBots] = useState<Bot[]>([]);
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [authState, setAuthState] = useState<'loading' | 'signed-in' | 'signed-out' | 'error'>('loading');
+  const [authAttempt, setAuthAttempt] = useState(0);
+  const [token, setToken] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [connectMessage, setConnectMessage] = useState('');
+  const [apiUrl, setApiUrl] = useState<string | null>(null);
+  const [botConnectEnabled, setBotConnectEnabled] = useState(false);
+  const [userBotDeliveryEnabled, setUserBotDeliveryEnabled] = useState(false);
+  const [connectConfigState, setConnectConfigState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      try {
+        const supabase = await getSupabase();
+        if (!active) return;
+        setApiUrl(getBaseApiUrl());
+        const { data: saved, error: restoreError } = await supabase.auth.getSession();
+        if (!active) return;
+        if (restoreError) {
+          setAuthState('error');
+          setStatus('Unable to restore your saved session. Please retry.');
+          return;
+        }
+        if (!saved.session) {
+          setAuthState('signed-out');
+          setStatus('Please sign in to access your bots.');
+          return;
+        }
+        const { data, error } = await supabase.auth.getUser();
+        if (!active) return;
+        if (error || !data.user) {
+          setAuthState('error');
+          setStatus('Unable to verify your saved session. Please retry.');
+          return;
+        }
+        setAuthState('signed-in');
+        try {await refreshWorkspace();}catch {if(active)setStatus('Unable to load your bots. Use Refresh bots and invitations to retry.');}
+        try {
+          const publicConfig = await getPublicBaseConfig();
+          if (active) {
+            setBotConnectEnabled(publicConfig.botConnectEnabled);
+            setUserBotDeliveryEnabled(publicConfig.userBotDeliveryEnabled);
+            setConnectConfigState('ready');
+          }
+        } catch {
+          // Authentication and bot listing stay usable during an API cold start.
+          if (active) {
+            setBotConnectEnabled(false);
+            setConnectConfigState('error');
+          }
+        }
+      } catch (error) {
+        if (active) {
+          setAuthState('error');
+          setStatus(error instanceof Error ? error.message : 'Dashboard unavailable.');
+        }
+      }
+    }
+    void load();
+    return () => { active = false; };
+  }, [authAttempt]);
+
+  async function connectBot(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setConnectMessage('');
+    if (!apiUrl || !botConnectEnabled) { setConnectMessage('Bot connections are temporarily disabled while staging security tests finish.'); return; }
+    setConnecting(true);
+    try {
+      const supabase = await getSupabase();
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session?.access_token) throw new Error('Sign in again to continue.');
+      const response = await fetch(new URL('/bots/connect', apiUrl), {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', authorization: 'Bearer ' + data.session.access_token },
+        body: JSON.stringify({ token })
+      });
+      const result = await response.json().catch(() => ({})) as { id?: string; message?: string | string[] };
+      if (!response.ok) throw new Error(typeof result.message === 'string' ? result.message : 'Unable to connect bot.');
+      setToken('');
+      setConnectMessage('Bot added to your account. The token field was cleared for safety. Save a reply, then activate the bot if you are an approved tester.');
+      await refreshWorkspace();
+      if(result.id)setSelectedBotId(result.id);
+    } catch (error) {
+      setConnectMessage(error instanceof Error ? error.message : 'Connection failed.');
+    } finally {
+      // BotFather credentials must not remain in React state after any
+      // successful or failed connection attempt.
+      setToken('');
+      setConnecting(false);
+    }
+  }
+
+  async function retryConnectionStatus() {
+    setConnectConfigState('loading');
+    try {
+      const config = await getPublicBaseConfig(true);
+      setBotConnectEnabled(config.botConnectEnabled);
+      setConnectConfigState('ready');
+    } catch {
+      setBotConnectEnabled(false);
+      setConnectConfigState('error');
+    }
+  }
+
+  async function savePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordMessage('');
+    if (newPassword.length < 12) {
+      setPasswordMessage('Use at least 12 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('The passwords do not match.');
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      const supabase = await getSupabase();
+      const { data, error: sessionError } = await supabase.auth.getUser();
+      if (sessionError || !data.user) throw new Error('Sign in again before setting a password.');
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordMessage('Password saved. Next time, sign in with your email and password.');
+    } catch (error) {
+      setPasswordMessage(error instanceof Error ? error.message : 'Unable to save password.');
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
+  async function signOut() {
+    const supabase = await getSupabase();
+    await supabase.auth.signOut();
+    if (window.location.pathname === '/miniapp') router.replace('/login?next=/miniapp');
+    else window.location.href = '/login';
+  }
+
+  return <main className="dashboard-main"><section className="card dashboard-card">
+    <div className="dashboard-topline">
+      <div><Brand/>
+        <h1>Your bots.</h1>
+        <p>Build smarter Telegram bots. All features are free.</p></div>
+      {authState === 'signed-in' && <button className="secondary" type="button" onClick={() => void signOut()}>Sign out</button>}
+    </div>
+    {status && <p role="status" className="notice">{status}</p>}
+    {authState === 'signed-out' && <Link href={typeof window !== 'undefined' && window.location.pathname === '/miniapp' ? '/login?next=/miniapp' : '/login'}>Sign in to continue</Link>}
+    {authState === 'error' && <button className="secondary" type="button" onClick={() => {
+      setAuthState('loading');
+      setStatus('Checking your session...');
+      setAuthAttempt(value => value + 1);
+    }}>Retry session check</button>}
+
+    {authState === 'signed-in' && <>
+      <section className="builder-section" aria-label="Team invitations"><h2>Your team workspace</h2>
+        <p>Share your Base team ID with a bot owner to receive an invitation. This ID is not a password and grants no access by itself.</p>
+        {teamId&&<><label htmlFor="my-team-id">Your Base team ID</label><input id="my-team-id" readOnly value={teamId}/></>}
+        <button type="button" className="secondary" disabled={teamBusy} onClick={()=>{setTeamBusy(true);void refreshWorkspace().catch(e=>setStatus(e.message)).finally(()=>setTeamBusy(false));}}>Refresh bots and invitations</button>
+        {invitations.map(i=><article className="broadcast-campaign" key={i.id}><h3>@{i.username}</h3><p>Invitation to join as <strong>{i.role}</strong> · expires {new Date(i.expires_at).toLocaleDateString()}</p><p>Viewer can read. Editor can edit content. Admin can also manage broadcasts and delivery.</p><div className="inline-actions"><button type="button" disabled={teamBusy} onClick={()=>void answerInvitation(i.id,'accept')}>Accept invitation</button><button type="button" className="secondary" disabled={teamBusy} onClick={()=>void answerInvitation(i.id,'decline')}>Decline</button></div></article>)}
+      </section>
+      <section className="builder-section">
+        <h2>Connect a Telegram bot</h2>
+        <p>Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">BotFather</a>, then connect it here. Bot tokens are secrets; only paste one into this secure form, never in chat or GitHub.</p>
+        {connectConfigState === 'loading' && <p className="notice" role="status">Checking bot connection availability...</p>}
+        {connectConfigState === 'ready' && !botConnectEnabled &&
+          <p className="notice" role="status">Bot connections are temporarily disabled. You can still manage previously connected bots.</p>}
+        {connectConfigState === 'error' && <div className="connection-retry">
+          <p className="notice" role="status">Could not check bot connection availability.</p>
+          <button className="secondary" type="button" onClick={() => void retryConnectionStatus()}>Retry connection check</button>
+        </div>}
+        <form onSubmit={event => void connectBot(event)}>
+          <label htmlFor="bot-token">BotFather token</label>
+          <input id="bot-token" type="password" autoComplete="off" value={token}
+            onChange={event => { setToken(event.target.value); setConnectMessage(''); }} disabled={!botConnectEnabled || !apiUrl}
+            required placeholder="Paste bot token here" />
+          <button type="submit" disabled={connecting || !apiUrl || !botConnectEnabled}>{connecting ? 'Connecting...' : 'Connect bot'}</button>
+        </form>
+        {connectMessage && <p role="status" className="notice">{connectMessage}</p>}
+      </section>
+
+      <section className="builder-section">
+        <h2>Connected bots <span className="bot-count">{bots.length}</span></h2>
+        {bots.length === 0 && <p>No bots connected yet. Connect your own bot or accept a team invitation.</p>}
+        {bots.map(bot => <button className={'bot-select' + (selectedBotId === bot.id ? ' chosen' : '')}
+          key={bot.id} type="button" onClick={() => setSelectedBotId(bot.id)}>
+          <span><strong>{bot.display_name || bot.username}</strong><small>@{bot.username}</small></span>
+          <span className="pill">{bot.role} · {bot.status}</span>
+        </button>)}
+      </section>
+
+      <section className="builder-section">
+        <h2>Sign in without an email link</h2>
+        <p>Set a password while you are signed in. Your email address remains your sign-in name; future sign-ins will not need a link.</p>
+        <form onSubmit={event => void savePassword(event)}>
+          <label htmlFor="new-password">New password</label>
+          <input id="new-password" type="password" autoComplete="new-password" minLength={12}
+            value={newPassword} onChange={event => setNewPassword(event.target.value)} required />
+          <label htmlFor="confirm-password">Confirm password</label>
+          <input id="confirm-password" type="password" autoComplete="new-password" minLength={12}
+            value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} required />
+          <button type="submit" disabled={passwordBusy}>{passwordBusy ? 'Saving...' : 'Set password'}</button>
+        </form>
+        {passwordMessage && <p role="status" className="notice">{passwordMessage}</p>}
+      </section>
+
+      {selectedBotId && apiUrl && <BotEditor key={selectedBotId} botId={selectedBotId} apiUrl={apiUrl}
+        deliveryEnabled={userBotDeliveryEnabled} onWorkspaceChange={()=>{void refreshWorkspace().catch(e=>setStatus(e.message));}}
+        onStatusChange={newStatus => setBots(current => current.map(bot =>
+          bot.id === selectedBotId ? { ...bot, status: newStatus } : bot))} />}
+      <p className="dashboard-footer">Need help getting started? Visit <a href="https://t.me/SautiLinkBaseBot" target="_blank" rel="noreferrer">@SautiLinkBaseBot</a> for guidance.</p>
+    </>}
+  </section></main>;
+}

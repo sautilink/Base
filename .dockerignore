@@ -1,0 +1,14 @@
+.git/
+**/node_modules/
+**/.next/
+**/.open-next/
+**/.wrangler/
+**/dist/
+**/coverage/
+**/.env
+**/.env.*
+.env
+.env.*
+*.log
+.pnpm-store/
+.DS_Store
