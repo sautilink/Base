@@ -7,6 +7,7 @@ import {activeBotToken} from './user-bot-credential';
 import {registerUserBotWebhook,userBotWebhookSecret} from './user-bot-telegram';
 import {botConnectTestOwners} from './bot-connect-config';
 import {enforceBotConnectRateLimit} from './connect-rate-limit';
+import type { PoolClient } from 'pg';
 
 @Controller('bots/:botId/builder')
 export class ContentController {
@@ -34,7 +35,7 @@ export class ContentController {
       pool().query('select id,title,kind,body,storage_path,archived from public.base_content_items where bot_id=$1 order by created_at desc limit 200',[botId]),
       pool().query('select id,parent_id,title,response_text,content_id,url,position from public.base_menu_items where bot_id=$1 order by position,id limit 100',[botId])
     ]);
-    return {content:content.rows,menus:menus.rows,mediaEnabled:!!process.env.BASE_STORAGE_SECRET_KEY};
+    return {content:content.rows,menus:menus.rows,mediaEnabled:!!process.env.BASE_STORAGE_SECRET_KEY,menuReorderEnabled:true};
   }
   @Post('content')
   async create(@Headers('authorization') auth: string | undefined,@Param('botId') botId:string,@Body() body:unknown) {
@@ -98,6 +99,43 @@ export class ContentController {
     await this.owner(auth,botId); const d=this.parse(()=>parseMenu(body));
     return this.saveMenu(botId,null,d);
   }
+  @Post('menus/reorder')
+  async reorderMenus(@Headers('authorization') auth: string | undefined, @Param('botId') botId: string, @Body() body: unknown) {
+    await this.owner(auth, botId);
+    const input = body as { parentId?: unknown; previous?: unknown; order?: unknown } | null;
+    const parentId = input?.parentId;
+    if (parentId !== null && (typeof parentId !== 'string' || !validUuid(parentId))) {
+      throw new BadRequestException('Invalid menu level');
+    }
+    const readIds = (value: unknown) => {
+      if (!Array.isArray(value) || value.length < 2 || value.length > 100 ||
+          !value.every(id => typeof id === 'string' && validUuid(id))) {
+        throw new BadRequestException('Invalid menu order');
+      }
+      const ids = (value as string[]).map(id => id.toLowerCase());
+      if (new Set(ids).size !== ids.length) throw new BadRequestException('Each button must appear once');
+      return ids;
+    };
+    const previous = readIds(input?.previous);
+    const order = readIds(input?.order);
+    const siblings = new Set(previous);
+    if (order.length !== previous.length || !order.every(id => siblings.has(id))) {
+      throw new BadRequestException('Reorder the buttons within one menu level');
+    }
+
+    return this.withMenuWrite(botId, async db => {
+      const current = await db.query<{ id: string }>(`select id from public.base_menu_items
+        where bot_id=$1 and parent_id is not distinct from $2::uuid order by position,id`, [botId, parentId]);
+      if (current.rows.length !== previous.length || current.rows.some((row, index) => row.id !== previous[index])) {
+        throw new ConflictException('This menu changed. Review the refreshed order before saving again.');
+      }
+      await db.query(`update public.base_menu_items as item set position=(sorted.ordinality-1)::int
+        from unnest($3::uuid[]) with ordinality as sorted(id, ordinality)
+        where item.bot_id=$1 and item.parent_id is not distinct from $2::uuid and item.id=sorted.id`,
+      [botId, parentId, order]);
+      return { saved: true };
+    });
+  }
   @Patch('menus/:id')
   async updateMenu(@Headers('authorization') auth:string|undefined,@Param('botId') botId:string,@Param('id') id:string,@Body() body:unknown) {
     await this.owner(auth,botId);this.id(id);return this.saveMenu(botId,id,this.parse(()=>parseMenu(body)));
@@ -105,15 +143,42 @@ export class ContentController {
   private async saveMenu(botId:string,id:string|null,d:ReturnType<typeof parseMenu>) {
     if(d.contentId && !(await pool().query('select id from public.base_content_items where id=$1 and bot_id=$2 and not archived',[d.contentId,botId])).rowCount)throw new BadRequestException('Content unavailable');
     try {
-      const r=id?await pool().query(`update public.base_menu_items set title=$3,response_text=$4,parent_id=$5,content_id=$6,url=$7,position=$8 where bot_id=$1 and id=$2 returning id`,[botId,id,d.title,d.responseText,d.parentId,d.contentId,d.url,d.position]):
-        await pool().query(`insert into public.base_menu_items(bot_id,title,response_text,parent_id,content_id,url,position) values($1,$2,$3,$4,$5,$6,$7) returning id`,[botId,d.title,d.responseText,d.parentId,d.contentId,d.url,d.position]);
-      if(!r.rowCount)throw new NotFoundException();return r.rows[0];
+      return await this.withMenuWrite(botId, async db => {
+        const result = id
+          ? await db.query(`update public.base_menu_items set title=$3,response_text=$4,parent_id=$5,content_id=$6,url=$7,position=$8
+              where bot_id=$1 and id=$2 returning id`, [botId,id,d.title,d.responseText,d.parentId,d.contentId,d.url,d.position])
+          : await db.query(`insert into public.base_menu_items(bot_id,title,response_text,parent_id,content_id,url,position)
+              values($1,$2,$3,$4,$5,$6,$7) returning id`, [botId,d.title,d.responseText,d.parentId,d.contentId,d.url,d.position]);
+        if (!result.rowCount) throw new NotFoundException();
+        return result.rows[0];
+      });
     }catch(e){if(['23503','23514'].includes((e as {code?:string}).code??''))throw new BadRequestException('Choose a valid parent without a cycle; maximum 100 menu items');throw e;}
   }
   @Delete('menus/:id')
   async remove(@Headers('authorization') auth:string|undefined,@Param('botId') botId:string,@Param('id') id:string) {
     await this.owner(auth,botId);this.id(id);
-    const r=await pool().query('delete from public.base_menu_items where bot_id=$1 and id=$2 returning id',[botId,id]);
-    if(!r.rowCount)throw new NotFoundException();return {deleted:true};
+    return this.withMenuWrite(botId, async db => {
+      const result = await db.query('delete from public.base_menu_items where bot_id=$1 and id=$2 returning id',[botId,id]);
+      if (!result.rowCount) throw new NotFoundException();
+      return { deleted: true };
+    });
+  }
+
+  private async withMenuWrite<T>(botId: string, write: (db: PoolClient) => Promise<T>): Promise<T> {
+    const db = await pool().connect();
+    let discard = false;
+    try {
+      await db.query('begin');
+      // Match the existing tree trigger's lock and acquire it before touching rows.
+      await db.query('select pg_advisory_xact_lock(hashtextextended($1::uuid::text,8))', [botId]);
+      const result = await write(db);
+      await db.query('commit');
+      return result;
+    } catch (error) {
+      try { await db.query('rollback'); } catch { discard = true; }
+      throw error;
+    } finally {
+      db.release(discard ? new Error('Menu transaction rollback failed') : undefined);
+    }
   }
 }

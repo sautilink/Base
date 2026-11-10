@@ -1,11 +1,12 @@
 'use client';
-import {useEffect,useState,type FormEvent} from 'react';
+import {useEffect,useState,type DragEvent,type FormEvent} from 'react';
 import {getSupabase} from '../../lib/supabase';
 type Content={id:string;title:string;kind:string;body:string;storage_path:string|null;archived:boolean};
 type Menu={id:string;parent_id:string|null;title:string;response_text:string;content_id:string|null;url:string|null;position:number};
 type Button={text:string;callback_data?:string;url?:string};
 type Preview={responseText:string|null;content?:Content;buttons?:Button[]};
 type Request=<T>(path:string,init?:RequestInit)=>Promise<T>;
+type MenuOrder = { parentId: string | null; previous: string[]; order: Menu[] };
 const MIME:Record<string,{kind:string;ext:string}>={
  'image/jpeg':{kind:'photo',ext:'jpg'},'image/png':{kind:'photo',ext:'png'},'image/webp':{kind:'photo',ext:'webp'},
  'video/mp4':{kind:'video',ext:'mp4'},'audio/mpeg':{kind:'audio',ext:'mp3'},'audio/ogg':{kind:'audio',ext:'ogg'},'audio/wav':{kind:'audio',ext:'wav'},
@@ -18,9 +19,14 @@ export default function ContentManager({botId,request,onChanged,ownerId,readOnly
  const [bind,setBind]=useState(''),[command,setCommand]=useState('');
  const [menuId,setMenuId]=useState(''),[menuTitle,setMenuTitle]=useState(''),[parent,setParent]=useState(''),[menuContent,setMenuContent]=useState(''),[menuText,setMenuText]=useState(''),[url,setUrl]=useState(''),[position,setPosition]=useState(0);
  const [preview,setPreview]=useState<Preview|null>(null),[mediaUrl,setMediaUrl]=useState('');
+ const [reorderEnabled, setReorderEnabled] = useState(false);
+ const [menuOrder, setMenuOrder] = useState<MenuOrder | null>(null);
+ const [dragging, setDragging] = useState<Menu | null>(null);
+ const [dropTarget, setDropTarget] = useState<string | null>(null);
+ const [orderNotice, setOrderNotice] = useState('');
  const path='/bots/'+botId+'/builder';
- async function load(){const r=await request<{content:Content[];menus:Menu[];mediaEnabled:boolean}>(path);setContent(r.content);setMenus(r.menus);setMediaEnabled(r.mediaEnabled);}
- useEffect(()=>{void load().catch(()=>setNotice('Could not load content and menus.'));},[botId]);
+ async function load(){const r=await request<{content:Content[];menus:Menu[];mediaEnabled:boolean;menuReorderEnabled?:boolean}>(path);setContent(r.content);setMenus(r.menus);setMediaEnabled(r.mediaEnabled);setReorderEnabled(r.menuReorderEnabled===true);}
+ useEffect(()=>{setMenuOrder(null);setDragging(null);setDropTarget(null);setOrderNotice('');void load().catch(()=>setNotice('Could not load content and menus.'));},[botId]);
  async function work(fn:()=>Promise<void>){setBusy(true);setNotice('');try{await fn();await load();await onChanged();}catch(e){setNotice(e instanceof Error?e.message:'Unable to save.');}finally{setBusy(false);}}
  async function saveContent(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget;await work(async()=>{
   if(editing){await request(path+'/content/'+editing.id,{method:'PATCH',body:JSON.stringify({title,body})});}
@@ -47,12 +53,75 @@ export default function ContentManager({botId,request,onChanged,ownerId,readOnly
   const r=await request<Preview>('/bots/'+botId+'/simulate',{method:'POST',body:JSON.stringify({message})});setPreview(r);
   if(r.content?.storage_path){const s=await getSupabase();const signed=await s.storage.from('base-content').createSignedUrl(r.content.storage_path,120);if(signed.error)throw new Error('Media preview unavailable.');setMediaUrl(signed.data.signedUrl);}
  }catch(e){setNotice(e instanceof Error?e.message:'Preview unavailable.');}finally{setBusy(false);}}
- function tree(parentId:string|null,seen=new Set<string>()):React.ReactNode{return menus.filter(m=>m.parent_id===parentId).map(m=>{
+ function level(parentId: string | null) {
+  return menuOrder && menuOrder.parentId === parentId ? menuOrder.order : menus.filter(item => item.parent_id === parentId);
+ }
+ function moveButton(item: Menu, destination: number) {
+  if (busy || readOnly || menuId || (menuOrder && menuOrder.parentId !== item.parent_id)) return;
+  const order = [...level(item.parent_id)];
+  const source = order.findIndex(button => button.id === item.id);
+  if (source < 0 || destination < 0 || destination >= order.length || source === destination) return;
+  const previous = menuOrder?.previous ?? order.map(button => button.id);
+  order.splice(source, 1);
+  order.splice(destination, 0, item);
+  setMenuOrder(order.every((button, index) => button.id === previous[index]) ? null : { parentId: item.parent_id, previous, order });
+  setOrderNotice(item.title + ' moved to position ' + (destination + 1) + '.');
+ }
+ function canDropOn(item: Menu) {
+  return dragging && dragging.id !== item.id && dragging.parent_id === item.parent_id && !busy && !readOnly;
+ }
+ function dropOn(event: DragEvent, item: Menu, index: number) {
+  if (!dragging || !canDropOn(item)) return;
+  event.preventDefault();
+  moveButton(dragging, index);
+  setDragging(null);
+  setDropTarget(null);
+ }
+ async function saveOrder() {
+  if (!menuOrder || busy || readOnly) return;
+  setBusy(true);
+  setOrderNotice('');
+  try {
+   await request(path + '/menus/reorder', { method: 'POST', body: JSON.stringify({
+    parentId: menuOrder.parentId, previous: menuOrder.previous, order: menuOrder.order.map(item => item.id),
+   }) });
+   setMenus(current => current.map(item => {
+    const position = menuOrder.order.findIndex(button => button.id === item.id);
+    return position < 0 ? item : { ...item, position };
+   }).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)));
+   setPreview(null);
+   setMediaUrl('');
+   setOrderNotice('Menu order saved.');
+  } catch (error) {
+   setOrderNotice(error instanceof Error ? error.message : 'Could not save menu order.');
+   await load().catch(() => setOrderNotice('Could not refresh the menu. Reload the dashboard before editing again.'));
+  } finally {
+   setMenuOrder(null);
+   setBusy(false);
+  }
+ }
+ function tree(parentId:string|null,seen=new Set<string>()):React.ReactNode{
+  const siblings = level(parentId);
+  return siblings.map((m,index)=>{
   if(seen.has(m.id))return null;const next=new Set(seen);next.add(m.id);
-  return <li key={m.id}><div className="content-row"><strong>{m.title}</strong><span>{m.url?'Link':content.find(c=>c.id===m.content_id)?.title??'Submenu / text'}</span>
-   <button type="button" className="secondary" disabled={busy||readOnly} onClick={()=>{setMenuId(m.id);setMenuTitle(m.title);setParent(m.parent_id??'');setMenuContent(m.content_id??'');setMenuText(m.response_text);setUrl(m.url??'');setPosition(m.position);}}>Edit</button>
-   <button type="button" className="danger" disabled={busy||readOnly} onClick={()=>{if(window.confirm('Delete “'+m.title+'” and its submenus?'))void work(async()=>{await request(path+'/menus/'+m.id,{method:'DELETE'});resetMenu();});}}>Delete</button></div><ul>{tree(m.id,next)}</ul></li>;
- });}
+  const canReorder = reorderEnabled && !readOnly && siblings.length > 1;
+  const orderBlocked = busy || !!menuId || (!!menuOrder && menuOrder.parentId !== parentId);
+  return <li key={m.id}><div className="content-row" data-drop-target={dropTarget===m.id || undefined}
+   onDragOver={event=>{if(canDropOn(m)){event.preventDefault();event.dataTransfer.dropEffect='move';setDropTarget(m.id);}}}
+   onDragLeave={event=>{if(!(event.relatedTarget instanceof Node)||!event.currentTarget.contains(event.relatedTarget))setDropTarget(null);}}
+   onDrop={event=>dropOn(event,m,index)}>
+   {canReorder && !orderBlocked && <span className="menu-drag-handle" aria-hidden="true" title="Drag to reorder" draggable
+    onDragStart={event=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',m.id);setDragging(m);}}
+    onDragEnd={()=>{setDragging(null);setDropTarget(null);}}>⠿</span>}
+   <strong>{m.title}</strong><span>{m.url?'Link':content.find(c=>c.id===m.content_id)?.title??'Submenu / text'}</span>
+   {canReorder && <div className="menu-order-controls">
+    <button type="button" className="secondary" aria-label={'Move '+m.title+' up'} disabled={orderBlocked||index===0} onClick={()=>moveButton(m,index-1)}>↑</button>
+    <button type="button" className="secondary" aria-label={'Move '+m.title+' down'} disabled={orderBlocked||index===siblings.length-1} onClick={()=>moveButton(m,index+1)}>↓</button>
+   </div>}
+   <button type="button" className="secondary" disabled={busy||readOnly||!!menuOrder} onClick={()=>{setMenuId(m.id);setMenuTitle(m.title);setParent(m.parent_id??'');setMenuContent(m.content_id??'');setMenuText(m.response_text);setUrl(m.url??'');setPosition(m.position);}}>Edit</button>
+   <button type="button" className="danger" disabled={busy||readOnly||!!menuOrder} onClick={()=>{if(window.confirm('Delete “'+m.title+'” and its submenus?'))void work(async()=>{await request(path+'/menus/'+m.id,{method:'DELETE'});resetMenu();});}}>Delete</button></div><ul>{tree(m.id,next)}</ul></li>;
+  });
+ }
  return <div className="content-builder">
   <div className="builder-section"><h3>Content Manager</h3><p>Create messages and media, then connect them to a command or a menu button.</p>
    <p role="status" aria-live="polite">{notice}</p>
@@ -74,7 +143,13 @@ export default function ContentManager({botId,request,onChanged,ownerId,readOnly
    </form></fieldset>
   </div>
   <div className="builder-section"><h3>Menu Builder</h3><p>Menus appear on /start and /menu. Add a parent to create a submenu.</p><button type="button" className="secondary" disabled={busy||!canOperate} onClick={()=>void work(async()=>{await request(path+'/enable-menus',{method:'POST'});setNotice('Menu buttons enabled on Telegram.');})}>Enable buttons on active bot</button><ul className="menu-tree">{tree(null)}</ul>
-   <fieldset className="role-controls" disabled={readOnly}><form onSubmit={saveMenu}><h4>{menuId?'Edit button':'Add a button'}</h4>
+   {reorderEnabled && !readOnly && <p>Drag buttons or use the arrows to reorder a menu level. Use Edit to move a button to another submenu.</p>}
+   <p role="status" aria-live="polite">{orderNotice}</p>
+   {menuOrder && <div className="inline-actions">
+    <button type="button" disabled={busy||readOnly} onClick={()=>void saveOrder()}>{busy?'Saving…':'Save order'}</button>
+    <button type="button" className="secondary" disabled={busy} onClick={()=>{setMenuOrder(null);setOrderNotice('Order changes cancelled.');}}>Cancel order changes</button>
+   </div>}
+   <fieldset className="role-controls" disabled={readOnly||!!menuOrder}><form onSubmit={saveMenu}><h4>{menuId?'Edit button':'Add a button'}</h4>
     <label htmlFor="menu-title">Button label</label><input id="menu-title" required maxLength={64} value={menuTitle} onChange={e=>setMenuTitle(e.target.value)}/>
     <label htmlFor="menu-parent">Parent</label><select id="menu-parent" value={parent} onChange={e=>setParent(e.target.value)}><option value="">Main menu</option>{menus.filter(m=>m.id!==menuId&&!m.url).map(m=><option key={m.id} value={m.id}>{m.title}</option>)}</select>
     <label htmlFor="menu-content">Content to show</label><select id="menu-content" value={menuContent} disabled={!!url} onChange={e=>setMenuContent(e.target.value)}><option value="">Text / submenu only</option>{content.filter(c=>!c.archived).map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select>
