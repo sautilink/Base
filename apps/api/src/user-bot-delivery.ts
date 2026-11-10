@@ -11,6 +11,7 @@ import { audienceCommand, audienceMessageTime, audienceVisitorKey, privateAudien
 import { encryptDestination } from './broadcast-config';
 import { recordSupport, supportEnabled, supportInput, type SupportInput, type SupportResult } from './support-inbox';
 import { isSurveyCommand, recordSurveyVote, surveyCallback, surveyReply, surveysEnabled, type SurveyVote } from './surveys';
+import { parseAsk, smartRepliesEnabled, smartReplyUnavailable, useSmartReply } from './smart-replies';
 
 type Bot = { id: string; username: string; status: string; welcome_message: string };
 type Rules = Pick<BotReplyConfiguration, 'commands' | 'rules' | 'contents' | 'menus'>;
@@ -23,6 +24,7 @@ export type DeliveryAdapter = {
   claimSupport?: (botId: string, updateId: number, observation: AudienceObservation, input: SupportInput) =>
     Promise<{ claimed: boolean; support: SupportResult }>;
   surveyReply?: (botId: string) => Promise<RichReply>;
+  smartReply?: (botId: string, question: string | null) => Promise<string | null>;
   claimSurveyVote?: (botId: string, updateId: number, vote: SurveyVote) =>
     Promise<{ claimed: boolean; answer: string }>;
   visitorKey?: (botId: string, chatId: number) => string;
@@ -53,6 +55,7 @@ const liveAdapter: DeliveryAdapter = {
   activeToken: activeBotToken,
   claim: claimUserBotUpdate,
   surveyReply,
+  smartReply: (botId, question) => useSmartReply(botId, question, true),
   async claimSurveyVote(botId, updateId, vote) {
     let answer = '';
     const claimed = await claimUserBotUpdate(botId, updateId, undefined, undefined, async db => {
@@ -127,10 +130,19 @@ export async function handleUserBotUpdate(
   if (claim.support?.consumed) {
     reply = null;
     responseText = claim.support.reply ?? null;
-    if (responseText && !token) {
-      try { token = await adapter.activeToken(botId); }
-      catch { await adapter.complete(botId, updateId, 'unknown'); return { ok: true }; }
+  } else if (message && sender && adapter.smartReply && smartRepliesEnabled(botId)) {
+    const ask = parseAsk(message.text, bot.username);
+    if (ask) {
+      const answer = await adapter.smartReply(botId, ask.question).catch(() => smartReplyUnavailable);
+      if (answer !== null) {
+        reply = null;
+        responseText = answer;
+      }
     }
+  }
+  if (responseText && !token) {
+    try { token = await adapter.activeToken(botId); }
+    catch { await adapter.complete(botId, updateId, 'unknown'); return { ok: true }; }
   }
   if(callback&&token&&adapter.answer){try{await adapter.answer(token,callback.queryId);}catch{/* Callback acknowledgement cannot authorize or replay a send. */}}
   if ((!message&&!callback) || (!responseText&&!reply?.content) || !token) {

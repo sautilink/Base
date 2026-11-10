@@ -6,6 +6,8 @@ import { TeamController } from './team.controller';
 import { SupportController } from './support.controller';
 import { SurveysController } from './surveys.controller';
 import { checkSurveySchema } from './surveys';
+import { SmartRepliesController } from './smart-replies.controller';
+import { checkSmartRepliesSchema } from './smart-replies';
 import { checkSupportSchema } from './support-inbox';
 import { BotsController } from './bots.controller';
 import { BotConfigController } from './bot-config.controller';
@@ -190,6 +192,8 @@ class HealthController {
       await checkSupportSchema();
       phase = 'survey-schema';
       await checkSurveySchema();
+      phase = 'smart-replies-schema';
+      await checkSmartRepliesSchema();
       return { status: 'ready', service: 'sautilink-base-api' };
     } catch (error) {
       const maybe = error as { code?: unknown; name?: unknown };
@@ -217,7 +221,7 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [TeamController, SupportController, SurveysController,
+@Module({ controllers: [TeamController, SupportController, SurveysController, SmartRepliesController,
   HealthController, PublicConfigController, BotsController, BotConfigController,
   MasterWebhookController, UserBotLifecycleController, UserBotWebhookController, MiniAppController, ContentController, AudienceController, BroadcastController, BroadcastDispatchController
 ] })
