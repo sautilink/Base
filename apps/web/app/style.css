@@ -95,7 +95,7 @@ button.danger{background:#fff0f1;color:#ba283c}
 .content-row button{padding:8px 12px}
 .menu-tree,.menu-tree ul{list-style:none;padding-left:14px;border-left:2px solid #e1e8f2}
 .menu-tree .menu-order-controls{display:flex;flex:0 0 auto;min-width:0;gap:6px}
-.menu-drag-handle{cursor:grab;font-size:24px;line-height:1;padding:6px;user-select:none}
+.menu-drag-handle{cursor:grab;font-size:24px;line-height:1;padding:6px;user-select:none;touch-action:none}
 .menu-drag-handle:active{cursor:grabbing}
 .menu-tree [data-drop-target]{outline:2px dashed #2563eb;outline-offset:2px}
 .telegram-preview{background:#edf4ef;border-radius:18px;padding:18px;margin-top:16px;overflow-wrap:anywhere}

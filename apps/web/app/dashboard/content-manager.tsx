@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState,type DragEvent,type FormEvent} from 'react';
+import {useEffect,useState,type FormEvent,type PointerEvent} from 'react';
 import {getSupabase} from '../../lib/supabase';
 type Content={id:string;title:string;kind:string;body:string;storage_path:string|null;archived:boolean};
 type Menu={id:string;parent_id:string|null;title:string;response_text:string;content_id:string|null;url:string|null;position:number};
@@ -21,12 +21,11 @@ export default function ContentManager({botId,request,onChanged,ownerId,readOnly
  const [preview,setPreview]=useState<Preview|null>(null),[mediaUrl,setMediaUrl]=useState('');
  const [reorderEnabled, setReorderEnabled] = useState(false);
  const [menuOrder, setMenuOrder] = useState<MenuOrder | null>(null);
- const [dragging, setDragging] = useState<Menu | null>(null);
  const [dropTarget, setDropTarget] = useState<string | null>(null);
  const [orderNotice, setOrderNotice] = useState('');
  const path='/bots/'+botId+'/builder';
  async function load(){const r=await request<{content:Content[];menus:Menu[];mediaEnabled:boolean;menuReorderEnabled?:boolean}>(path);setContent(r.content);setMenus(r.menus);setMediaEnabled(r.mediaEnabled);setReorderEnabled(r.menuReorderEnabled===true);}
- useEffect(()=>{setMenuOrder(null);setDragging(null);setDropTarget(null);setOrderNotice('');void load().catch(()=>setNotice('Could not load content and menus.'));},[botId]);
+ useEffect(()=>{setMenuOrder(null);setDropTarget(null);setOrderNotice('');void load().catch(()=>setNotice('Could not load content and menus.'));},[botId]);
  async function work(fn:()=>Promise<void>){setBusy(true);setNotice('');try{await fn();await load();await onChanged();}catch(e){setNotice(e instanceof Error?e.message:'Unable to save.');}finally{setBusy(false);}}
  async function saveContent(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget;await work(async()=>{
   if(editing){await request(path+'/content/'+editing.id,{method:'PATCH',body:JSON.stringify({title,body})});}
@@ -67,15 +66,9 @@ export default function ContentManager({botId,request,onChanged,ownerId,readOnly
   setMenuOrder(order.every((button, index) => button.id === previous[index]) ? null : { parentId: item.parent_id, previous, order });
   setOrderNotice(item.title + ' moved to position ' + (destination + 1) + '.');
  }
- function canDropOn(item: Menu) {
-  return dragging && dragging.id !== item.id && dragging.parent_id === item.parent_id && !busy && !readOnly;
- }
- function dropOn(event: DragEvent, item: Menu, index: number) {
-  if (!dragging || !canDropOn(item)) return;
-  event.preventDefault();
-  moveButton(dragging, index);
-  setDragging(null);
-  setDropTarget(null);
+ function pointerTarget(event: PointerEvent, siblings: Menu[]) {
+  const row = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-menu-item]');
+  return siblings.findIndex(item => item.id === row?.dataset.menuItem);
  }
  async function saveOrder() {
   if (!menuOrder || busy || readOnly) return;
@@ -106,13 +99,24 @@ export default function ContentManager({botId,request,onChanged,ownerId,readOnly
   if(seen.has(m.id))return null;const next=new Set(seen);next.add(m.id);
   const canReorder = reorderEnabled && !readOnly && siblings.length > 1;
   const orderBlocked = busy || !!menuId || (!!menuOrder && menuOrder.parentId !== parentId);
-  return <li key={m.id}><div className="content-row" data-drop-target={dropTarget===m.id || undefined}
-   onDragOver={event=>{if(canDropOn(m)){event.preventDefault();event.dataTransfer.dropEffect='move';setDropTarget(m.id);}}}
-   onDragLeave={event=>{if(!(event.relatedTarget instanceof Node)||!event.currentTarget.contains(event.relatedTarget))setDropTarget(null);}}
-   onDrop={event=>dropOn(event,m,index)}>
-   {canReorder && !orderBlocked && <span className="menu-drag-handle" aria-hidden="true" title="Drag to reorder" draggable
-    onDragStart={event=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',m.id);setDragging(m);}}
-    onDragEnd={()=>{setDragging(null);setDropTarget(null);}}>⠿</span>}
+  return <li key={m.id}><div className="content-row" data-menu-item={m.id} data-drop-target={dropTarget===m.id || undefined}>
+   {canReorder && !orderBlocked && <span className="menu-drag-handle" aria-hidden="true" title="Drag to reorder"
+    onPointerDown={event=>{
+     if (!event.isPrimary || event.button !== 0) return;
+     event.preventDefault();
+     event.currentTarget.setPointerCapture(event.pointerId);
+    }}
+    onPointerMove={event=>{
+     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+     const target = pointerTarget(event, siblings);
+     setDropTarget(target !== index ? siblings[target]?.id ?? null : null);
+    }}
+    onPointerUp={event=>{
+     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+     moveButton(m, pointerTarget(event, siblings));
+     setDropTarget(null);
+    }}
+    onLostPointerCapture={()=>setDropTarget(null)}>⠿</span>}
    <strong>{m.title}</strong><span>{m.url?'Link':content.find(c=>c.id===m.content_id)?.title??'Submenu / text'}</span>
    {canReorder && <div className="menu-order-controls">
     <button type="button" className="secondary" aria-label={'Move '+m.title+' up'} disabled={orderBlocked||index===0} onClick={()=>moveButton(m,index-1)}>↑</button>
